@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aero Analytica Tool Kit — Brochure Extractor</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Helvetica,Arial,sans-serif;font-size:14px;background:#2e2e2e;color:#c8c8c8;padding:24px}
+  h1{font-size:20px;font-weight:600;color:#d8d8d8;letter-spacing:.3px;margin-bottom:2px}
+  .sub{color:#888;font-size:13px;margin-bottom:16px}
+  .nav{display:flex;align-items:center;margin-bottom:20px;border:1px solid #444;border-radius:8px;overflow:hidden;width:fit-content}
+  .nav-btn{padding:7px 18px;font-size:12px;font-family:Helvetica,Arial,sans-serif;background:#353535;color:#888;border:none;border-right:1px solid #444;cursor:pointer;letter-spacing:.4px;text-transform:uppercase;text-decoration:none;display:inline-block;transition:background .15s}
+  .nav-btn:last-child{border-right:none}
+  .nav-btn:hover{background:#444;color:#bbb}
+  .nav-btn.active{background:#505050;color:#d8d8d8}
+
+  /* API Key bar */
+  .apibar{display:flex;align-items:center;gap:10px;background:#353535;border:1px solid #444;border-radius:8px;padding:10px 14px;margin-bottom:18px}
+  .apibar label{font-size:12px;color:#888;white-space:nowrap;letter-spacing:.3px;text-transform:uppercase}
+  .apibar input{flex:1;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:6px;padding:6px 10px;color:#c8c8c8;font-size:13px;font-family:Helvetica,Arial,sans-serif}
+  .apibar input:focus{outline:none;border-color:#777}
+  .apibar input::placeholder{color:#555}
+  .key-status{font-size:11px;padding:2px 8px;border-radius:5px;font-weight:500;white-space:nowrap}
+  .key-ok{background:#2a3d2e;color:#6abf7a}
+  .key-no{background:#3a3a3a;color:#888}
+
+  /* Drop zone */
+  .dropzone{border:2px dashed #4a4a4a;border-radius:10px;padding:32px;text-align:center;background:#353535;cursor:pointer;transition:border-color .2s;margin-bottom:12px}
+  .dropzone:hover,.dropzone.over{border-color:#8a8a8a}
+  .dropzone input{display:none}
+  .dropzone-icon{font-size:32px;margin-bottom:8px}
+  .dropzone p{color:#888;font-size:13px}
+  .dropzone p b{color:#aaa}
+
+  /* File list */
+  .file-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+  .file-item{display:flex;align-items:center;justify-content:space-between;background:#353535;border:1px solid #444;border-radius:7px;padding:8px 12px;font-size:13px;color:#c0c0c0}
+  .file-status{font-size:11px;padding:2px 8px;border-radius:5px;font-weight:500}
+  .status-pending{background:#3a3a3a;color:#888}
+  .status-processing{background:#2a3a4a;color:#7aabda}
+  .status-done{background:#2a3d2e;color:#6abf7a}
+  .status-error{background:#3d2a2a;color:#d97070}
+
+  /* Buttons */
+  .controls{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:7px;border:1px solid #555;background:#3a3a3a;color:#c0c0c0;cursor:pointer;font-size:13px;font-weight:500;font-family:Helvetica,Arial,sans-serif;transition:background .15s}
+  .btn:hover{background:#444;color:#d8d8d8}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .btn-primary{background:#505050;color:#e0e0e0;border-color:#666}
+  .btn-primary:hover:not(:disabled){background:#5c5c5c}
+
+  .err{color:#d97070;font-size:12px;margin:8px 0}
+
+  /* View toggle */
+  .view-toggle{display:flex;gap:0;margin-bottom:14px;border:1px solid #444;border-radius:7px;overflow:hidden;width:fit-content}
+  .view-btn{padding:6px 16px;font-size:12px;font-family:Helvetica,Arial,sans-serif;background:#353535;color:#888;border:none;cursor:pointer;letter-spacing:.3px;text-transform:uppercase;transition:background .15s}
+  .view-btn.active{background:#505050;color:#d8d8d8}
+
+  /* Cards view */
+  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-bottom:24px}
+  .card{background:#353535;border:1px solid #444;border-radius:10px;overflow:hidden}
+  .card-header{background:#303030;padding:12px 16px;border-bottom:1px solid #444}
+  .card-tail{font-size:18px;font-weight:600;color:#d8d8d8;letter-spacing:.5px}
+  .card-model{font-size:12px;color:#888;margin-top:2px}
+  .card-body{padding:12px 16px}
+  .card-row{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid #3a3a3a;font-size:12px}
+  .card-row:last-child{border-bottom:none}
+  .card-label{color:#888;text-transform:uppercase;letter-spacing:.4px;font-size:10px;flex-shrink:0;margin-right:12px}
+  .card-val{color:#c8c8c8;text-align:right}
+  .card-val.not-listed{color:#555;font-style:italic}
+  .card-section{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#666;padding:10px 0 4px;font-weight:600}
+
+  /* Table view */
+  .table-wrap{overflow-x:auto;border:1px solid #444;border-radius:10px;background:#353535}
+  table{border-collapse:collapse;width:100%;font-size:12px}
+  thead tr{background:#303030;border-bottom:1px solid #444}
+  th{padding:8px 10px;text-align:left;font-weight:500;color:#888;white-space:nowrap;cursor:pointer;user-select:none;font-size:10px;letter-spacing:.4px;text-transform:uppercase}
+  th:hover{color:#bbb}
+  td{padding:7px 10px;border-bottom:1px solid #404040;color:#c0c0c0;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  tr:nth-child(even) td{background:#323232}
+  td.not-listed{color:#555;font-style:italic}
+
+  .results-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+  .stats{display:flex;gap:16px;background:#353535;border:1px solid #444;border-radius:7px;padding:7px 14px;font-size:12px}
+  .stats span{color:#888}
+  .stats span b{color:#d0d0d0;font-weight:600}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.3/umd/supabase.min.js"></script>
+<script>
+(async () => {
+  const { createClient } = supabase;
+  const sb = createClient('https://rabjbhtoufrrfznpztjt.supabase.co', 'sb_publishable_q-VtpKa9-S_uTXU3ZmrLDw_6dwIz7Ch');
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = 'index.html'; return; }
+  window._sb = sb;
+  window._userEmail = session.user.email;
+  document.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('user-email');
+    if (el) el.textContent = session.user.email;
+  });
+})();
+async function signOut() {
+  await window._sb.auth.signOut();
+  window.location.href = 'index.html';
+}
+</script>
+</head>
+<body>
+
+<h1>Aero Analytica Tool Kit</h1>
+<p class="sub">Aviation data extraction suite</p>
+<nav class="nav">
+  <a class="nav-btn" href="vref_extractor.html">VREF Valuations</a>
+  <a class="nav-btn active" href="aero_brochure_extractor.html">Brochure Extractor</a>
+  <a class="nav-btn" href="aero_dashboard.html">Dashboard</a>
+  <span id="user-email" style="font-size:11px;color:#555;padding:0 12px;align-self:center;letter-spacing:.3px"></span>
+  <a class="nav-btn" onclick="signOut()" style="cursor:pointer;border-left:1px solid #444;color:#888" title="Sign out">⏻ Sign out</a>
+</nav>
+<p class="sub" style="margin-top:-10px">Brochure Extractor — drop aircraft sales brochures to extract specs, times, and equipment</p>
+
+<div class="apibar">
+  <label>API Key</label>
+  <input type="password" id="apiKey" placeholder="sk-ant-..." oninput="checkKey()">
+  <span class="key-status key-no" id="keyStatus">Not set</span>
+</div>
+
+<div class="dropzone" id="dz">
+  <input type="file" id="fi" accept=".pdf" multiple>
+  <div class="dropzone-icon">📋</div>
+  <p>Drag & drop aircraft brochures (PDF) here, or <b>click to browse</b></p>
+</div>
+
+<div class="file-list" id="file-list"></div>
+
+<div class="controls">
+  <button class="btn btn-primary" id="runBtn" disabled onclick="runAll()">▶ Extract brochures</button>
+  <button class="btn" id="csvBtn" style="display:none" onclick="exportCSV()">⬇ Export CSV</button>
+</div>
+<div id="err-msg" class="err"></div>
+
+<div id="results-area" style="display:none">
+  <div class="results-header">
+    <div class="stats" id="stats"></div>
+    <div class="view-toggle">
+      <button class="view-btn active" id="vbCards" onclick="setView('cards')">Cards</button>
+      <button class="view-btn" id="vbTable" onclick="setView('table')">Table</button>
+    </div>
+  </div>
+  <div id="cards-view" class="cards-grid"></div>
+  <div id="table-view" style="display:none">
+    <div class="table-wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+  </div>
+</div>
+
+<script>
+// ── Schema ────────────────────────────────────────────────────────────────────
+const SCHEMA = [
+  { key:'tail_number',       label:'Tail / Reg',         section:'Identity' },
+  { key:'serial_number',     label:'Serial Number',       section:'Identity' },
+  { key:'make',              label:'Make',                section:'Identity' },
+  { key:'model',             label:'Model',               section:'Identity' },
+  { key:'year',              label:'Year',                section:'Identity' },
+  { key:'aftt',              label:'Airframe Total Time', section:'Airframe' },
+  { key:'landings',          label:'Total Landings',      section:'Airframe' },
+  { key:'eng1_serial',       label:'Eng 1 Serial',        section:'Engines' },
+  { key:'eng1_time',         label:'Eng 1 Total Time',    section:'Engines' },
+  { key:'eng2_serial',       label:'Eng 2 Serial',        section:'Engines' },
+  { key:'eng2_time',         label:'Eng 2 Total Time',    section:'Engines' },
+  { key:'eng3_serial',       label:'Eng 3 Serial',        section:'Engines' },
+  { key:'eng3_time',         label:'Eng 3 Total Time',    section:'Engines' },
+  { key:'apu_total_time',    label:'APU Total Time',      section:'APU' },
+  { key:'avionics',          label:'Avionics Suite',      section:'Equipment' },
+  { key:'wifi',              label:'WiFi',                section:'Equipment' },
+  { key:'paint_year',        label:'Paint Year',          section:'Interior & Exterior' },
+  { key:'interior_year',     label:'Interior Year',       section:'Interior & Exterior' },
+  { key:'source_file',       label:'Source File',         section:'Meta' },
+];
+
+const SYSTEM_PROMPT = `You are an expert aviation data extraction specialist. Extract structured data from aircraft sales brochures and specification sheets.
+
+Return ONLY a valid JSON object with exactly these keys. For any field not found or not mentioned, use the string "Not listed". Never leave a field null or undefined.
+
+Keys to extract:
+- tail_number: Registration or tail number (e.g. N123AB)
+- serial_number: Aircraft serial number / MSN
+- make: Manufacturer (e.g. Bombardier, Gulfstream, Dassault, Cessna, Embraer)
+- model: Aircraft model (e.g. Global 6500, G650ER, Falcon 8X, Citation Longitude)
+- year: Year of manufacture or delivery
+- aftt: Airframe Total Time in hours (numbers only, no units)
+- landings: Total airframe landings / cycles (numbers only)
+- eng1_serial: Engine 1 serial number
+- eng1_time: Engine 1 total time in hours (numbers only)
+- eng2_serial: Engine 2 serial number
+- eng2_time: Engine 2 total time in hours (numbers only)
+- eng3_serial: Engine 3 serial number (use "N/A" if aircraft has fewer than 3 engines)
+- eng3_time: Engine 3 total time in hours (use "N/A" if aircraft has fewer than 3 engines)
+- apu_total_time: APU total time in hours (numbers only)
+- avionics: Full avionics/flight deck suite description (e.g. Garmin G5000, Rockwell Collins Pro Line Fusion, Honeywell Primus Epic)
+- wifi: WiFi system — identify type: Gogo (specify AVANCE L5/L3), Ka-Band, Ku-Band, Starlink, Swift Broadband, BBML, or describe what is listed. If multiple, list all.
+- paint_year: Year of most recent exterior paint
+- interior_year: Year of most recent interior refurbishment or completion
+
+Return ONLY the JSON object, no markdown, no explanation, no extra text.`;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let files = [], allRecords = [], currentView = 'cards';
+
+// ── API Key ───────────────────────────────────────────────────────────────────
+function checkKey() {
+  const k = document.getElementById('apiKey').value.trim();
+  const s = document.getElementById('keyStatus');
+  const valid = k.startsWith('sk-ant-') && k.length > 20;
+  s.className = 'key-status ' + (valid ? 'key-ok' : 'key-no');
+  s.textContent = valid ? 'Ready' : 'Not set';
+  document.getElementById('runBtn').disabled = !(valid && files.length > 0);
+}
+
+// ── Drop zone ─────────────────────────────────────────────────────────────────
+const dz = document.getElementById('dz');
+const fi = document.getElementById('fi');
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); addFiles(e.dataTransfer.files); });
+fi.addEventListener('change', e => { addFiles(e.target.files); fi.value=''; });
+
+function addFiles(newFiles) {
+  const names = new Set(files.map(f => f.name));
+  for (const f of newFiles) if (f.type === 'application/pdf' && !names.has(f.name)) files.push(f);
+  renderFileList();
+  const k = document.getElementById('apiKey').value.trim();
+  document.getElementById('runBtn').disabled = !(k.startsWith('sk-ant-') && k.length > 20 && files.length > 0);
+}
+
+function removeFile(name) {
+  files = files.filter(f => f.name !== name);
+  renderFileList();
+  checkKey();
+}
+
+function renderFileList() {
+  document.getElementById('file-list').innerHTML = files.map(f => `
+    <div class="file-item">
+      <span>📋 ${f.name} <span style="color:#555">(${(f.size/1024).toFixed(0)} KB)</span></span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <span class="file-status status-pending" id="st-${CSS.escape(f.name)}">Pending</span>
+        <span style="cursor:pointer;color:#555;font-size:16px" onclick="removeFile('${f.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">✕</span>
+      </span>
+    </div>`).join('');
+}
+
+function setStatus(name, cls, label) {
+  const el = document.getElementById('st-' + CSS.escape(name));
+  if (el) { el.className = 'file-status ' + cls; el.textContent = label; }
+}
+
+// ── PDF → base64 ──────────────────────────────────────────────────────────────
+function toBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = () => rej(new Error('Read failed'));
+    r.readAsDataURL(file);
+  });
+}
+
+// ── Extract one brochure ──────────────────────────────────────────────────────
+async function extractBrochure(file, apiKey) {
+  const b64 = await toBase64(file);
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      system: SYSTEM_PROMPT,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+          { type: 'text', text: 'Extract all aircraft data from this brochure into the JSON schema.' }
+        ]
+      }]
+    })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `API error ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  const text = data.content.map(c => c.text || '').join('').replace(/```json|```/g,'').trim();
+  const record = JSON.parse(text);
+  record.source_file = file.name.replace('.pdf','');
+
+  // Normalize model name to title case
+  if (record.model && record.model !== 'Not listed') {
+    record.model = record.model.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  // Ensure all schema keys exist
+  for (const f of SCHEMA) {
+    if (!(f.key in record) || record[f.key] === null || record[f.key] === undefined || record[f.key] === '') {
+      record[f.key] = 'Not listed';
+    }
+  }
+  return record;
+}
+
+// ── Run all ───────────────────────────────────────────────────────────────────
+async function runAll() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!files.length || !apiKey) return;
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('err-msg').textContent = '';
+
+  for (const file of files) {
+    setStatus(file.name, 'status-processing', 'Extracting…');
+    try {
+      const record = await extractBrochure(file, apiKey);
+      allRecords.push(record);
+      setStatus(file.name, 'status-done', 'Done');
+    } catch(e) {
+      setStatus(file.name, 'status-error', 'Error');
+      document.getElementById('err-msg').textContent = `${file.name}: ${e.message}`;
+    }
+  }
+
+  document.getElementById('runBtn').disabled = false;
+  if (allRecords.length) {
+    document.getElementById('results-area').style.display = 'block';
+    document.getElementById('csvBtn').style.display = 'inline-flex';
+    renderAll();
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function setView(v) {
+  currentView = v;
+  document.getElementById('cards-view').style.display  = v === 'cards' ? 'grid' : 'none';
+  document.getElementById('table-view').style.display  = v === 'table' ? 'block' : 'none';
+  document.getElementById('vbCards').className = 'view-btn' + (v==='cards'?' active':'');
+  document.getElementById('vbTable').className = 'view-btn' + (v==='table'?' active':'');
+}
+
+function renderAll() {
+  document.getElementById('stats').innerHTML =
+    `<span><b>${allRecords.length}</b> aircraft</span>
+     <span><b>${new Set(allRecords.map(r=>r.make).filter(v=>v&&v!=='Not listed')).size}</b> makes</span>`;
+
+  renderCards();
+  renderTable();
+}
+
+function renderCards() {
+  const sections = [...new Set(SCHEMA.map(f => f.section))];
+  document.getElementById('cards-view').innerHTML = allRecords.map(r => {
+    const tail  = r.tail_number !== 'Not listed' ? r.tail_number : r.serial_number !== 'Not listed' ? r.serial_number : '—';
+    const model = [r.make, r.model, r.year].filter(v => v && v !== 'Not listed').join(' ');
+    let body = '';
+    for (const sec of sections) {
+      if (sec === 'Identity' || sec === 'Meta') continue;
+      const fields = SCHEMA.filter(f => f.section === sec && f.key !== 'source_file');
+      // Skip engine 3 if N/A
+      const visible = fields.filter(f => !(f.key.startsWith('eng3') && (r[f.key]==='N/A'||r[f.key]==='Not listed')));
+      if (!visible.length) continue;
+      body += `<div class="card-section">${sec}</div>`;
+      for (const f of visible) {
+        const v = r[f.key] || 'Not listed';
+        const cls = v === 'Not listed' ? 'card-val not-listed' : 'card-val';
+        body += `<div class="card-row"><span class="card-label">${f.label}</span><span class="${cls}">${v}</span></div>`;
+      }
+    }
+    return `<div class="card">
+      <div class="card-header">
+        <div class="card-tail">${tail}</div>
+        <div class="card-model">${model || 'Unknown aircraft'}</div>
+      </div>
+      <div class="card-body">${body}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderTable() {
+  const cols = SCHEMA.filter(f => f.key !== 'source_file');
+  document.getElementById('thead').innerHTML = '<tr>' +
+    cols.map(f => `<th>${f.label}</th>`).join('') + '</tr>';
+  document.getElementById('tbody').innerHTML = allRecords.map(r =>
+    '<tr>' + cols.map(f => {
+      const v = r[f.key] || 'Not listed';
+      return `<td${v==='Not listed'?' class="not-listed"':''}>${v}</td>`;
+    }).join('') + '</tr>'
+  ).join('');
+}
+
+// ── CSV Export ────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const cols = SCHEMA;
+  const lines = [cols.map(f => f.label).join(',')];
+  for (const r of allRecords) {
+    lines.push(cols.map(f => {
+      const v = String(r[f.key] ?? '');
+      return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g,'""')}"` : v;
+    }).join(','));
+  }
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='aero_brochure_extract.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>

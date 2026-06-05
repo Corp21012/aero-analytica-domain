@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aero Analytica Tool Kit — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Helvetica,Arial,sans-serif;font-size:14px;background:#2e2e2e;color:#c8c8c8;padding:24px}
+  h1{font-size:20px;font-weight:600;color:#d8d8d8;letter-spacing:.3px;margin-bottom:2px}
+  .sub{color:#888;font-size:13px;margin-bottom:16px}
+  .nav{display:flex;align-items:center;margin-bottom:20px;border:1px solid #444;border-radius:8px;overflow:hidden;width:fit-content}
+  .nav-btn{padding:7px 18px;font-size:12px;font-family:Helvetica,Arial,sans-serif;background:#353535;color:#888;border:none;border-right:1px solid #444;cursor:pointer;letter-spacing:.4px;text-transform:uppercase;text-decoration:none;display:inline-block;transition:background .15s}
+  .nav-btn:last-child{border-right:none}
+  .nav-btn:hover{background:#444;color:#bbb}
+  .nav-btn.active{background:#505050;color:#d8d8d8}
+
+  .sbbar{display:flex;align-items:center;gap:10px;background:#353535;border:1px solid #444;border-radius:8px;padding:10px 14px;margin-bottom:16px;flex-wrap:wrap}
+  .sbbar label{font-size:11px;color:#888;white-space:nowrap;letter-spacing:.4px;text-transform:uppercase}
+  .sbbar input{background:#2a2a2a;border:1px solid #4a4a4a;border-radius:6px;padding:6px 10px;color:#c8c8c8;font-size:13px;font-family:Helvetica,Arial,sans-serif}
+  .sbbar input:focus{outline:none;border-color:#777}
+  .sbbar input::placeholder{color:#555}
+  .sbbar input.url{width:280px}
+  .sbbar input.key{width:220px}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:7px;border:1px solid #555;background:#3a3a3a;color:#c0c0c0;cursor:pointer;font-size:13px;font-weight:500;font-family:Helvetica,Arial,sans-serif;transition:background .15s}
+  .btn:hover:not(:disabled){background:#444;color:#d8d8d8}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .btn-primary{background:#505050;color:#e0e0e0;border-color:#666}
+  .btn-primary:hover:not(:disabled){background:#5c5c5c}
+
+  .err{color:#d97070;font-size:12px;margin:8px 0}
+  .loading{color:#888;font-size:13px;margin:8px 0}
+
+  /* Stats row */
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+  .stat-card{background:#353535;border:1px solid #444;border-radius:8px;padding:12px 16px}
+  .stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#666;margin-bottom:4px}
+  .stat-val{font-size:22px;font-weight:600;color:#d8d8d8}
+  .stat-sub{font-size:11px;color:#666;margin-top:2px}
+
+  /* Filters */
+  .filter-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .filter-bar label{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#888}
+  select{font-size:13px;padding:6px 10px;border-radius:6px;border:1px solid #555;background:#3a3a3a;color:#c0c0c0;font-family:Helvetica,Arial,sans-serif}
+  .filter-group{display:flex;flex-wrap:wrap;gap:6px}
+  .model-chip{padding:4px 10px;border-radius:20px;font-size:11px;border:1px solid #555;background:#3a3a3a;color:#888;cursor:pointer;transition:all .15s;user-select:none}
+  .model-chip.on{background:#505050;color:#d8d8d8;border-color:#777}
+
+  /* Charts */
+  .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+  @media(max-width:900px){.charts-grid{grid-template-columns:1fr}}
+  .chart-card{background:#353535;border:1px solid #444;border-radius:10px;padding:16px}
+  .chart-title{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:12px}
+  .chart-wrap{position:relative;height:320px}
+
+  /* Table */
+  .section-label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#666;margin-bottom:8px}
+  .table-wrap{overflow-x:auto;border:1px solid #444;border-radius:10px;background:#353535}
+  table{border-collapse:collapse;width:100%;font-size:12px}
+  thead tr{background:#303030;border-bottom:1px solid #444}
+  th{padding:8px 10px;text-align:left;font-weight:500;color:#888;white-space:nowrap;font-size:10px;letter-spacing:.4px;text-transform:uppercase;cursor:pointer;user-select:none}
+  th:hover{color:#bbb}
+  td{padding:7px 10px;border-bottom:1px solid #404040;color:#c0c0c0;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  tr:nth-child(even) td{background:#323232}
+
+  .empty{text-align:center;padding:48px;color:#555;font-size:13px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.3/umd/supabase.min.js"></script>
+<script>
+(async () => {
+  const { createClient } = supabase;
+  const sb = createClient('https://rabjbhtoufrrfznpztjt.supabase.co', 'sb_publishable_q-VtpKa9-S_uTXU3ZmrLDw_6dwIz7Ch');
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = 'index.html'; return; }
+  window._sb = sb;
+  window._userEmail = session.user.email;
+  document.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('user-email');
+    if (el) el.textContent = session.user.email;
+  });
+})();
+async function signOut() {
+  await window._sb.auth.signOut();
+  window.location.href = 'index.html';
+}
+</script>
+</head>
+<body>
+
+<h1>Aero Analytica Tool Kit</h1>
+<p class="sub">Aviation data extraction suite</p>
+<nav class="nav">
+  <a class="nav-btn" href="vref_extractor.html">VREF Valuations</a>
+  <a class="nav-btn" href="aero_brochure_extractor.html">Brochure Extractor</a>
+  <a class="nav-btn active" href="aero_dashboard.html">Dashboard</a>
+  <span id="user-email" style="font-size:11px;color:#555;padding:0 12px;align-self:center;letter-spacing:.3px"></span>
+  <a class="nav-btn" onclick="signOut()" style="cursor:pointer;border-left:1px solid #444;color:#888" title="Sign out">⏻ Sign out</a>
+</nav>
+
+<div class="sbbar">
+  <label>Supabase URL</label>
+  <input class="url" id="sbUrl" placeholder="https://xxxx.supabase.co" value="https://rabjbhtoufrrfznpztjt.supabase.co">
+  <label>Anon Key</label>
+  <input class="key" id="sbKey" placeholder="sb_publishable_..." type="password">
+  <button class="btn btn-primary" onclick="loadData()">↻ Load Data</button>
+</div>
+<div id="err-msg" class="err"></div>
+<div id="loading" class="loading" style="display:none">Loading from Supabase…</div>
+
+<div id="main" style="display:none">
+
+  <!-- Stats -->
+  <div class="stat-row" id="stats"></div>
+
+  <!-- Filters -->
+  <div class="filter-bar">
+    <label>Models</label>
+    <div class="filter-group" id="model-chips"></div>
+    <label style="margin-left:8px">Value Type</label>
+    <select id="valueType" onchange="redrawCharts()">
+      <option value="both">Retail + Wholesale</option>
+      <option value="retail">Retail only</option>
+      <option value="wholesale">Wholesale only</option>
+    </select>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Retail Value — by Model Year</div>
+      <div class="chart-wrap"><canvas id="retailChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Wholesale Value — by Model Year</div>
+      <div class="chart-wrap"><canvas id="wholesaleChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Data table -->
+  <div class="section-label">All records</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th onclick="sortTable('report_quarter')">Quarter</th>
+        <th onclick="sortTable('model')">Model</th>
+        <th onclick="sortTable('model_year')">Year</th>
+        <th onclick="sortTable('retail_price')">Retail</th>
+        <th onclick="sortTable('wholesale_price')">Wholesale</th>
+        <th onclick="sortTable('pct_since_new')">% Since New</th>
+        <th onclick="sortTable('aftt')">AFTT</th>
+        <th onclick="sortTable('price_per_hr')">$/hr</th>
+        <th>Serial Range</th>
+      </tr></thead>
+      <tbody id="tbl-body"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+// ── Palette — distinct colors per model ──────────────────────────────────────
+const PALETTE = [
+  '#7aabda','#6abf7a','#e8a85f','#c47ec4','#5fc4c4',
+  '#d97070','#a0c06a','#7a9be8','#e8c45f','#c4a07e',
+];
+
+let allData = [], activeModels = new Set(), sortKey = 'model_year', sortDir = 1;
+let retailChart = null, wholesaleChart = null;
+
+// ── Load from Supabase ────────────────────────────────────────────────────────
+async function loadData() {
+  const url = document.getElementById('sbUrl').value.trim();
+  const key = document.getElementById('sbKey').value.trim();
+  const err = document.getElementById('err-msg');
+  const loading = document.getElementById('loading');
+
+  if (!url || !key) { err.textContent = 'Enter Supabase URL and anon key.'; return; }
+  err.textContent = '';
+  loading.style.display = 'block';
+  document.getElementById('main').style.display = 'none';
+
+  try {
+    const resp = await fetch(
+      `${url}/rest/v1/vref_valuations?select=*&order=model_year.asc`,
+      { headers: { 'apikey': key, 'Authorization': `Bearer ${key}` } }
+    );
+    if (!resp.ok) {
+      const e = await resp.json().catch(()=>({}));
+      throw new Error(e?.message || `HTTP ${resp.status}`);
+    }
+    allData = await resp.json();
+    loading.style.display = 'none';
+
+    if (!allData.length) {
+      err.textContent = 'No data found. Push some VREF extractions first.';
+      return;
+    }
+
+    // Default: all models active
+    const models = [...new Set(allData.map(r => r.model))].sort();
+    activeModels = new Set(models);
+
+    renderStats();
+    renderModelChips(models);
+    redrawCharts();
+    renderTable();
+    document.getElementById('main').style.display = 'block';
+
+  } catch(e) {
+    loading.style.display = 'none';
+    err.textContent = `Error: ${e.message}`;
+  }
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const models    = new Set(allData.map(r => r.model)).size;
+  const quarters  = [...new Set(allData.map(r => r.report_quarter))].sort();
+  const maxRetail = Math.max(...allData.map(r => r.retail_price || 0));
+  const minRetail = Math.min(...allData.filter(r=>r.retail_price).map(r => r.retail_price));
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Total Records</div><div class="stat-val">${allData.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Models Tracked</div><div class="stat-val">${models}</div></div>
+    <div class="stat-card"><div class="stat-label">Quarters</div><div class="stat-val">${quarters.length}</div><div class="stat-sub">${quarters[0]} – ${quarters[quarters.length-1]}</div></div>
+    <div class="stat-card"><div class="stat-label">Highest Retail</div><div class="stat-val">$${(maxRetail/1e6).toFixed(1)}M</div></div>
+    <div class="stat-card"><div class="stat-label">Lowest Retail</div><div class="stat-val">$${(minRetail/1e6).toFixed(1)}M</div></div>
+  `;
+}
+
+// ── Model chips ───────────────────────────────────────────────────────────────
+function renderModelChips(models) {
+  document.getElementById('model-chips').innerHTML = models.map((m,i) =>
+    `<span class="model-chip on" id="chip-${i}"
+      style="border-color:${PALETTE[i % PALETTE.length]}40;color:${activeModels.has(m)?PALETTE[i%PALETTE.length]:'#666'}"
+      onclick="toggleModel('${m}',${i})">${m}</span>`
+  ).join('');
+}
+
+function toggleModel(model, idx) {
+  if (activeModels.has(model)) activeModels.delete(model);
+  else activeModels.add(model);
+  const chip = document.getElementById('chip-' + idx);
+  const color = PALETTE[idx % PALETTE.length];
+  chip.style.color = activeModels.has(model) ? color : '#666';
+  redrawCharts();
+  renderTable();
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+function buildDatasets(valueKey) {
+  const models   = [...new Set(allData.map(r => r.model))].sort();
+  const quarters = [...new Set(allData.map(r => r.report_quarter).filter(Boolean))].sort();
+
+  return models
+    .filter(m => activeModels.has(m))
+    .map((model, i) => {
+      const color = PALETTE[i % PALETTE.length];
+      // One line per quarter for this model
+      const byQtr = quarters.map(q => {
+        const rows = allData.filter(r => r.model === model && r.report_quarter === q)
+          .sort((a,b) => a.model_year - b.model_year);
+        return rows.map(r => ({ x: r.model_year, y: r[valueKey] }));
+      });
+
+      // If only one quarter, just plot model_year vs value
+      if (quarters.length <= 1) {
+        const rows = allData.filter(r => r.model === model && r[valueKey])
+          .sort((a,b) => a.model_year - b.model_year);
+        return [{
+          label: model,
+          data: rows.map(r => ({ x: r.model_year, y: r[valueKey] })),
+          borderColor: color,
+          backgroundColor: color + '22',
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          borderWidth: 2,
+          spanGaps: false,
+        }];
+      }
+
+      // Multiple quarters — one dataset per quarter, same hue, varying opacity
+      return quarters.map((q, qi) => ({
+        label: `${model} (${q})`,
+        data: byQtr[qi].filter(p => p.y),
+        borderColor: color,
+        backgroundColor: color + '15',
+        borderWidth: qi === quarters.length - 1 ? 2.5 : 1.5,
+        borderDash: qi === quarters.length - 1 ? [] : [4,3],
+        tension: 0.3,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        opacity: 0.4 + (qi / quarters.length) * 0.6,
+        spanGaps: false,
+      }));
+    }).flat();
+}
+
+const CHART_OPTS = (yLabel) => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  interaction: { mode: 'nearest', intersect: true, axis: 'x' },
+  plugins: {
+    legend: {
+      labels: { color: '#888', font: { family: 'Helvetica', size: 11 }, boxWidth: 12, padding: 10 },
+    },
+    tooltip: {
+      backgroundColor: '#252525',
+      borderColor: '#444',
+      borderWidth: 1,
+      titleColor: '#d8d8d8',
+      bodyColor: '#aaa',
+      callbacks: {
+        title: items => items.length ? String(items[0].parsed.x) : '',
+        label: ctx => ` ${ctx.dataset.label}: $${Number(ctx.parsed.y).toLocaleString()}`,
+      }
+    }
+  },
+  scales: {
+    x: {
+      type: 'linear',
+      title: { display: true, text: 'Model Year', color: '#666', font: { size: 11 } },
+      ticks: { color: '#666', font: { size: 11 }, stepSize: 1, maxRotation: 45,
+        callback: v => Number.isInteger(v) ? String(v) : '' },
+      grid: { color: '#3a3a3a' },
+    },
+    y: {
+      title: { display: true, text: yLabel, color: '#666', font: { size: 11 } },
+      ticks: { color: '#666', font: { size: 11 },
+        callback: v => '$' + (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : (v/1e3).toFixed(0)+'K') },
+      grid: { color: '#3a3a3a' },
+    }
+  }
+});
+
+function redrawCharts() {
+  if (retailChart)    { retailChart.destroy();    retailChart = null; }
+  if (wholesaleChart) { wholesaleChart.destroy(); wholesaleChart = null; }
+
+  const vt = document.getElementById('valueType').value;
+  const retailVisible    = vt !== 'wholesale';
+  const wholesaleVisible = vt !== 'retail';
+
+  document.querySelector('.charts-grid').children[0].style.display = retailVisible    ? '' : 'none';
+  document.querySelector('.charts-grid').children[1].style.display = wholesaleVisible ? '' : 'none';
+
+  if (retailVisible) {
+    retailChart = new Chart(
+      document.getElementById('retailChart'),
+      { type: 'line', data: { datasets: buildDatasets('retail_price') }, options: CHART_OPTS('Retail Value ($)') }
+    );
+  }
+  if (wholesaleVisible) {
+    wholesaleChart = new Chart(
+      document.getElementById('wholesaleChart'),
+      { type: 'line', data: { datasets: buildDatasets('wholesale_price') }, options: CHART_OPTS('Wholesale Value ($)') }
+    );
+  }
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+function renderTable() {
+  const rows = allData
+    .filter(r => activeModels.has(r.model))
+    .sort((a,b) => {
+      const av = a[sortKey] ?? '', bv = b[sortKey] ?? '';
+      if (typeof av === 'number' && typeof bv === 'number') return (av-bv)*sortDir;
+      return String(av).localeCompare(String(bv))*sortDir;
+    });
+
+  document.getElementById('tbl-body').innerHTML = rows.map(r => `<tr>
+    <td>${r.report_quarter || '—'}</td>
+    <td>${r.model}</td>
+    <td>${r.model_year}</td>
+    <td>${r.retail_price ? '$'+Number(r.retail_price).toLocaleString() : '—'}</td>
+    <td>${r.wholesale_price ? '$'+Number(r.wholesale_price).toLocaleString() : '—'}</td>
+    <td>${r.pct_since_new != null ? r.pct_since_new+'%' : '—'}</td>
+    <td>${r.aftt != null ? Number(r.aftt).toLocaleString() : '—'}</td>
+    <td>${r.price_per_hr != null ? '$'+r.price_per_hr : '—'}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;color:#666">${r.serial_range_raw || '—'}</td>
+  </tr>`).join('') || '<tr><td colspan="9" class="empty">No records match current filters</td></tr>';
+}
+
+function sortTable(key) {
+  if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = 1; }
+  renderTable();
+}
+</script>
+</body>
+</html>

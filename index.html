@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aero Analytica — Login</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.3/umd/supabase.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Helvetica,Arial,sans-serif;font-size:14px;background:#2e2e2e;color:#c8c8c8;min-height:100vh;display:flex;align-items:center;justify-content:center}
+  .card{background:#353535;border:1px solid #444;border-radius:12px;padding:40px;width:100%;max-width:380px}
+  .logo{text-align:center;margin-bottom:28px}
+  .logo h1{font-size:22px;font-weight:600;color:#d8d8d8;letter-spacing:.5px}
+  .logo p{font-size:12px;color:#666;margin-top:4px;text-transform:uppercase;letter-spacing:.8px}
+  .divider{width:40px;height:1px;background:#444;margin:16px auto 0}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:6px}
+  .field input{width:100%;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:7px;padding:10px 12px;color:#c8c8c8;font-size:14px;font-family:Helvetica,Arial,sans-serif;transition:border-color .15s}
+  .field input:focus{outline:none;border-color:#777}
+  .field input::placeholder{color:#555}
+  .btn{width:100%;padding:11px;border-radius:7px;border:none;background:#505050;color:#e0e0e0;font-size:14px;font-weight:500;font-family:Helvetica,Arial,sans-serif;cursor:pointer;transition:background .15s;margin-top:6px}
+  .btn:hover:not(:disabled){background:#5c5c5c}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .err{font-size:12px;color:#d97070;margin-top:10px;text-align:center;min-height:18px}
+  .ok{font-size:12px;color:#6abf7a;margin-top:10px;text-align:center;min-height:18px}
+  .forgot{text-align:center;margin-top:14px}
+  .forgot a{font-size:12px;color:#666;text-decoration:none;cursor:pointer}
+  .forgot a:hover{color:#aaa}
+  .reset-back{font-size:12px;color:#666;cursor:pointer;text-align:center;margin-top:12px}
+  .reset-back:hover{color:#aaa}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">
+    <h1>Aero Analytica</h1>
+    <p>Tool Kit</p>
+    <div class="divider"></div>
+  </div>
+
+  <!-- Login form -->
+  <div id="login-form">
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="you@company.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn" id="loginBtn" onclick="signIn()">Sign In</button>
+    <div id="login-err" class="err"></div>
+    <div class="forgot"><a onclick="showReset()">Forgot password?</a></div>
+  </div>
+
+  <!-- Reset password form -->
+  <div id="reset-form" style="display:none">
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="reset-email" placeholder="you@company.com">
+    </div>
+    <button class="btn" id="resetBtn" onclick="sendReset()">Send Reset Link</button>
+    <div id="reset-msg" class="err"></div>
+    <div class="reset-back" onclick="showLogin()">← Back to sign in</div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://rabjbhtoufrrfznpztjt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_q-VtpKa9-S_uTXU3ZmrLDw_6dwIz7Ch';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// If already logged in, go straight to the tool
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) window.location.href = 'vref_extractor.html';
+})();
+
+// Enter key submits
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    if (document.getElementById('login-form').style.display !== 'none') signIn();
+    else sendReset();
+  }
+});
+
+async function signIn() {
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const errEl    = document.getElementById('login-err');
+  const btn      = document.getElementById('loginBtn');
+
+  if (!email || !password) { errEl.textContent = 'Please enter your email and password.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  errEl.textContent = '';
+
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    errEl.textContent = error.message === 'Invalid login credentials'
+      ? 'Incorrect email or password.'
+      : error.message;
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  } else {
+    window.location.href = 'vref_extractor.html';
+  }
+}
+
+async function sendReset() {
+  const email  = document.getElementById('reset-email').value.trim();
+  const msgEl  = document.getElementById('reset-msg');
+  const btn    = document.getElementById('resetBtn');
+
+  if (!email) { msgEl.textContent = 'Enter your email address.'; msgEl.style.color='#d97070'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://aero-analytica.com/index.html',
+  });
+
+  if (error) {
+    msgEl.style.color = '#d97070';
+    msgEl.textContent = error.message;
+  } else {
+    msgEl.style.color = '#6abf7a';
+    msgEl.textContent = 'Reset link sent — check your email.';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Send Reset Link';
+}
+
+function showReset() {
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('reset-form').style.display = 'block';
+  document.getElementById('reset-msg').textContent = '';
+}
+
+function showLogin() {
+  document.getElementById('reset-form').style.display = 'none';
+  document.getElementById('login-form').style.display = 'block';
+  document.getElementById('login-err').textContent = '';
+}
+</script>
+</body>
+</html>
