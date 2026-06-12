@@ -91,6 +91,7 @@ document.addEventListener('click', () => { const m=document.getElementById('nav-
 <div class="picker">
   <select id="acSelect" onchange="loadAircraft(this.value)"></select>
   <button class="reset" onclick="resetAll()">Reset to Conklin defaults</button>
+  <button class="reset" style="border-color:#DE9020;color:#DE9020" onclick="openReportModal()">Create client report</button>
 </div>
 <div class="specs" id="specs"></div>
 
@@ -145,6 +146,25 @@ document.addEventListener('click', () => { const m=document.getElementById('nav-
   </div>
 </div>
 
+<div id="rptModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:60" onclick="if(event.target===this)closeReportModal()">
+  <div style="max-width:430px;margin:8vh auto;background:#353535;border:1px solid #555;border-radius:10px;padding:18px">
+    <h2 style="font-size:13px;color:#d8d8d8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px">Create client report</h2>
+    <div style="font-size:12px;color:#888;margin-bottom:12px" id="rptAcName"></div>
+    <div style="display:grid;gap:9px">
+      <input type="text" id="rptCompany" placeholder="Client company (e.g. Keller Aviation Holdings)" style="width:100%">
+      <input type="text" id="rptPrincipal" placeholder="Principal name (e.g. Marta Keller)" style="width:100%">
+      <input type="number" id="rptAsk" placeholder="Asking price $ (optional)" style="width:100%;text-align:left">
+      <input type="number" id="rptBook" placeholder="VREF book value $ (optional)" style="width:100%;text-align:left">
+      <textarea id="rptNote" placeholder="Broker note shown to the client (optional)" rows="3" style="font-family:Helvetica,Arial,sans-serif;font-size:13px;background:#262626;color:#d8d8d8;border:1px solid #4a4a4a;border-radius:6px;padding:7px 9px;resize:vertical"></textarea>
+      <label style="font-size:12px;color:#aaa"><input type="checkbox" id="rptShowCharter" style="accent-color:#DE9020;margin-right:6px">Show charter offset scenario to client</label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="reset" style="border-color:#DE9020;color:#DE9020" onclick="createReport()" id="rptCreateBtn">Create &amp; copy link</button>
+      <button class="reset" onclick="closeReportModal()">Cancel</button>
+    </div>
+    <div id="rptResult" style="font-size:12px;color:#6abf7a;margin-top:10px;word-break:break-all"></div>
+  </div>
+</div>
 <p class="note">Defaults are Conklin &amp; de Decker baseline figures embedded at build time. Fuel scales with burn (gal/hr &times; price) and maintenance labor with man-hours per flight hour &times; rate, so edited prices propagate physically rather than proportionally. Charter offset assumes the owner bears variable cost on charter hours and receives the rate less management commission; the breakeven rate is the charter price at which an additional charter hour neither adds nor removes annual cost. Internal planning tool — not a quote.</p>
 
 <script>
@@ -232,6 +252,54 @@ function recalc() {
   $("mNm").textContent = oh > 0 && num("avgSpeed") > 0 ? fmt(net / (oh * num("avgSpeed"))) : "—";
   $("mBreakeven").textContent = comm < 1 ? fmt(varHr / (1 - comm)) + "/hr" : "—";
   $("hrsLabel").textContent = "(Conklin baseline " + (AC.util_hrs || "—") + ")";
+}
+
+function openReportModal() {
+  document.getElementById("rptAcName").textContent = AC.name + " — captures all current assumptions";
+  document.getElementById("rptResult").textContent = "";
+  document.getElementById("rptModal").style.display = "block";
+}
+function closeReportModal() { document.getElementById("rptModal").style.display = "none"; }
+
+function buildReportConfig() {
+  const v = {}, f = {};
+  VAR_FIELDS.forEach(([k]) => { v[k] = num(k); });
+  FIX_FIELDS.forEach(([k]) => { f[k] = num(k); });
+  return {
+    specs: { cruise: AC.s_cruise, range: AC.s_range, pax: AC.s_pax, ceiling: AC.s_ceiling },
+    gph: num("gph"), mlhrs: num("mlhrs"), fuelPrice: num("fuelPrice"), laborRate: num("laborRate"),
+    avgSpeed: num("avgSpeed"), acq: num("acq"),
+    useDep: document.getElementById("useDep").checked, depPct: num("depPct"),
+    v, f,
+    ownerHrs: num("ownerHrs"), charterHrs: num("charterHrs"), charterRate: num("charterRate"), comm: num("comm"),
+    showCharter: document.getElementById("rptShowCharter").checked,
+    askPrice: num("rptAsk") || null, bookValue: num("rptBook") || null,
+    note: document.getElementById("rptNote").value.trim() || null,
+  };
+}
+
+async function createReport() {
+  const btn = document.getElementById("rptCreateBtn");
+  btn.disabled = true; btn.textContent = "Creating…";
+  try {
+    const bytes = new Uint8Array(8); crypto.getRandomValues(bytes);
+    const token = Array.from(bytes, (b) => b.toString(36)).join("").slice(0, 12);
+    const { error } = await window._sb.from("reports").insert({
+      token,
+      client_company: document.getElementById("rptCompany").value.trim() || null,
+      principal_name: document.getElementById("rptPrincipal").value.trim() || null,
+      aircraft_name: AC.name,
+      config: buildReportConfig(),
+    });
+    if (error) throw new Error(error.message);
+    const url = location.origin + "/report.html?t=" + token;
+    try { await navigator.clipboard.writeText(url); } catch (e) {}
+    document.getElementById("rptResult").textContent = "Link copied: " + url;
+  } catch (e) {
+    const r = document.getElementById("rptResult");
+    r.style.color = "#df7a6e"; r.textContent = "Could not create report: " + e.message;
+  }
+  btn.disabled = false; btn.textContent = "Create & copy link";
 }
 
 init();
