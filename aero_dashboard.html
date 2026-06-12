@@ -217,7 +217,8 @@ async function loadData() {
   document.getElementById('main').style.display = 'none';
 
   try {
-    const { data, error } = await sb
+    if (!window._sb) throw new Error('Still signing in — try again in a second.');
+    const { data, error } = await window._sb
       .from('vref_valuations')
       .select('*')
       .order('model_year', { ascending: true });
@@ -501,10 +502,11 @@ document.addEventListener('keydown', e => {
 });
 </script>
 <script>
-// Auto-load the dashboard after the auth guard confirms the session
+// Auto-load the dashboard once the auth guard has finished signing in
 (async () => {
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) loadData();
+  for (let i = 0; i < 100 && !window._sb; i++) await new Promise(r => setTimeout(r, 50));
+  if (!window._sb) return; // guard redirected to login
+  loadData();
 })();
 </script>
 </body>

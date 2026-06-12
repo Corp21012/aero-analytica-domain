@@ -474,7 +474,7 @@ async function pushToSupabase() {
   const payload = allRows.map(r => ({ ...r, report_quarter: qtr }));
 
   try {
-    const { error } = await sb
+    const { error } = await window._sb
       .from('vref_valuations')
       .upsert(payload, { onConflict: 'model,model_year,report_quarter' });
     if (error) throw new Error(error.message);
