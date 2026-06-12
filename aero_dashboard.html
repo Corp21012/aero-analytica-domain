@@ -10,7 +10,7 @@
   body{font-family:Helvetica,Arial,sans-serif;font-size:14px;background:#2e2e2e;color:#c8c8c8;padding:24px}
   h1{font-size:20px;font-weight:600;color:#d8d8d8;letter-spacing:.3px;margin-bottom:2px}
   .sub{color:#888;font-size:13px;margin-bottom:16px}
-  .nav{display:flex;align-items:center;margin-bottom:20px;border:1px solid #444;border-radius:8px;overflow:hidden;width:fit-content}
+  .nav{display:flex;align-items:center;margin-bottom:20px;border:1px solid #444;border-radius:8px;width:100%;max-width:980px}
   .nav-btn{padding:7px 18px;font-size:12px;font-family:Helvetica,Arial,sans-serif;background:#353535;color:#888;border:none;border-right:1px solid #444;cursor:pointer;letter-spacing:.4px;text-transform:uppercase;text-decoration:none;display:inline-block;transition:background .15s}
   .nav-btn:last-child{border-right:none}
   .nav-btn:hover{background:#444;color:#bbb}
@@ -86,6 +86,19 @@
   .modal-cancel{background:transparent;color:#888;border:1px solid #444 !important}
   .modal-cancel:hover{color:#bbb}
   .modal-msg{font-size:12px;margin-top:10px;text-align:center;min-height:16px}
+
+  /* hamburger nav */
+  .nav{position:relative}
+  .menu-btn{font-size:15px;padding:7px 14px}
+  .nav-title{font-size:12px;color:#d8d8d8;letter-spacing:.6px;text-transform:uppercase;padding:0 16px;border-right:1px solid #444;align-self:stretch;display:flex;align-items:center;background:#3d3d3d}
+  .menu-dropdown{display:none;position:absolute;top:calc(100% + 6px);left:0;min-width:210px;background:#353535;border:1px solid #444;border-radius:10px;overflow:hidden;z-index:90;box-shadow:0 10px 28px rgba(0,0,0,.45)}
+  .menu-dropdown.open{display:block}
+  .menu-dropdown a{display:block;padding:10px 16px;font-size:12px;color:#999;text-decoration:none;letter-spacing:.4px;text-transform:uppercase;transition:background .12s}
+  .menu-dropdown a:hover{background:#444;color:#ccc}
+  .menu-dropdown a.active{background:#505050;color:#e0e0e0}
+  .menu-sep{height:1px;background:#444;margin:4px 0}
+  .nav > .nav-btn:first-child{border-radius:8px 0 0 8px}
+  .nav > .nav-btn:nth-last-child(2){border-radius:0 8px 8px 0}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.1/dist/umd/supabase.min.js"></script>
 <script>
@@ -111,13 +124,20 @@ async function signOut() {
 
 <h1>Aero Analytica Tool Kit</h1>
 <p class="sub">Aviation data extraction suite</p>
-<nav class="nav">\n  <a class="nav-btn" href="hub.html" title="Hub">&#8962;</a>
-  <a class="nav-btn" href="vref_extractor.html">VREF Valuations</a>
-  <a class="nav-btn" href="aero_brochure_extractor.html">Brochure Extractor</a>
-  <a class="nav-btn active" href="aero_dashboard.html">Dashboard</a>
-  <span id="user-email" style="font-size:11px;color:#555;padding:0 12px;align-self:center;letter-spacing:.3px"></span>
-    <a class="nav-btn gear-btn" onclick="openSettings()" style="cursor:pointer;border-left:1px solid #444;color:#888" title="Settings">&#9881;</a>
-<a class="nav-btn" onclick="signOut()" style="cursor:pointer;border-left:1px solid #444;color:#888" title="Sign out">⏻ Sign out</a>
+<nav class="nav">
+  <a class="nav-btn menu-btn" onclick="toggleMenu(event)" style="cursor:pointer" title="Menu">&#9776;</a>
+  <span class="nav-title">Dashboard</span>
+  <span id="user-email" style="font-size:11px;color:#555;padding:0 12px;align-self:center;letter-spacing:.3px;margin-left:auto"></span>
+  <a class="nav-btn gear-btn" onclick="openSettings()" style="cursor:pointer;border-left:1px solid #444;color:#888" title="Settings">&#9881;</a>
+  <a class="nav-btn" onclick="signOut()" style="cursor:pointer;border-left:1px solid #444;color:#888" title="Sign out">&#9211; Sign out</a>
+  <div class="menu-dropdown" id="nav-menu">
+    <a href="hub.html">&#8962; Hub</a>
+    <a href="vref_extractor.html">VREF Valuations</a>
+    <a href="aero_brochure_extractor.html">Brochure Extractor</a>
+    <a href="aero_dashboard.html" class="active">Dashboard</a>
+    <div class="menu-sep"></div>
+    <a href="tailbook.html">Tailbook CRM</a>
+  </div>
 </nav>
 
 <div class="sbbar">
@@ -474,6 +494,20 @@ async function changePassword() {
     setTimeout(closeSettings, 1200);
   }
 }
+</script>
+
+<script>
+function toggleMenu(e) {
+  e.stopPropagation();
+  document.getElementById('nav-menu').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  const m = document.getElementById('nav-menu');
+  if (m && !m.contains(e.target)) m.classList.remove('open');
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('nav-menu')?.classList.remove('open');
+});
 </script>
 </body>
 </html>
