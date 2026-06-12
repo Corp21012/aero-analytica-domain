@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aero Analytica Tool Kit — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Helvetica,Arial,sans-serif;font-size:14px;background:#2e2e2e;color:#c8c8c8;padding:24px}
+  h1{font-size:20px;font-weight:600;color:#d8d8d8;letter-spacing:.3px;margin-bottom:2px}
+  .sub{color:#888;font-size:13px;margin-bottom:16px}
+  .nav{display:flex;align-items:center;margin-bottom:20px;border:1px solid #444;border-radius:8px;width:100%;max-width:980px}
+  .nav-btn{padding:7px 18px;font-size:12px;font-family:Helvetica,Arial,sans-serif;background:#353535;color:#888;border:none;border-right:1px solid #444;cursor:pointer;letter-spacing:.4px;text-transform:uppercase;text-decoration:none;display:inline-block;transition:background .15s}
+  .nav-btn:last-child{border-right:none}
+  .nav-btn:hover{background:#444;color:#bbb}
+  .nav-btn.active{background:#505050;color:#d8d8d8}
+
+  .sbbar{display:flex;align-items:center;gap:10px;background:#353535;border:1px solid #444;border-radius:8px;padding:10px 14px;margin-bottom:16px;flex-wrap:wrap}
+  .sbbar label{font-size:11px;color:#888;white-space:nowrap;letter-spacing:.4px;text-transform:uppercase}
+  .sbbar input{background:#2a2a2a;border:1px solid #4a4a4a;border-radius:6px;padding:6px 10px;color:#c8c8c8;font-size:13px;font-family:Helvetica,Arial,sans-serif}
+  .sbbar input:focus{outline:none;border-color:#777}
+  .sbbar input::placeholder{color:#555}
+  .sbbar input.url{width:280px}
+  .sbbar input.key{width:220px}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:7px;border:1px solid #555;background:#3a3a3a;color:#c0c0c0;cursor:pointer;font-size:13px;font-weight:500;font-family:Helvetica,Arial,sans-serif;transition:background .15s}
+  .btn:hover:not(:disabled){background:#444;color:#d8d8d8}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .btn-primary{background:#505050;color:#e0e0e0;border-color:#666}
+  .btn-primary:hover:not(:disabled){background:#5c5c5c}
+
+  .err{color:#d97070;font-size:12px;margin:8px 0}
+  .loading{color:#888;font-size:13px;margin:8px 0}
+
+  /* Stats row */
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+  .stat-card{background:#353535;border:1px solid #444;border-radius:8px;padding:12px 16px}
+  .stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#666;margin-bottom:4px}
+  .stat-val{font-size:22px;font-weight:600;color:#d8d8d8}
+  .stat-sub{font-size:11px;color:#666;margin-top:2px}
+
+  /* Filters */
+  .filter-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .filter-bar label{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#888}
+  select{font-size:13px;padding:6px 10px;border-radius:6px;border:1px solid #555;background:#3a3a3a;color:#c0c0c0;font-family:Helvetica,Arial,sans-serif}
+  .filter-group{display:flex;flex-wrap:wrap;gap:6px}
+  .model-chip{padding:4px 10px;border-radius:20px;font-size:11px;border:1px solid #555;background:#3a3a3a;color:#888;cursor:pointer;transition:all .15s;user-select:none}
+  .model-chip.on{background:#505050;color:#d8d8d8;border-color:#777}
+
+  /* Charts */
+  .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+  @media(max-width:900px){.charts-grid{grid-template-columns:1fr}}
+  .chart-card{background:#353535;border:1px solid #444;border-radius:10px;padding:16px}
+  .chart-title{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:12px}
+  .chart-wrap{position:relative;height:320px}
+
+  /* Table */
+  .section-label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#666;margin-bottom:8px}
+  .table-wrap{overflow-x:auto;border:1px solid #444;border-radius:10px;background:#353535}
+  table{border-collapse:collapse;width:100%;font-size:12px}
+  thead tr{background:#303030;border-bottom:1px solid #444}
+  th{padding:8px 10px;text-align:left;font-weight:500;color:#888;white-space:nowrap;font-size:10px;letter-spacing:.4px;text-transform:uppercase;cursor:pointer;user-select:none}
+  th:hover{color:#bbb}
+  td{padding:7px 10px;border-bottom:1px solid #404040;color:#c0c0c0;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  tr:nth-child(even) td{background:#323232}
+
+  .empty{text-align:center;padding:48px;color:#555;font-size:13px}
+
+  /* settings modal */
+  .gear-btn{font-size:14px;line-height:1}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:center;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal{background:#353535;border:1px solid #444;border-radius:12px;padding:28px;width:100%;max-width:340px}
+  .modal h2{font-size:15px;font-weight:600;color:#d8d8d8;margin-bottom:18px;letter-spacing:.3px}
+  .modal .field{margin-bottom:12px}
+  .modal .field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:6px}
+  .modal .field input{width:100%;box-sizing:border-box;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:7px;padding:9px 11px;color:#c8c8c8;font-size:13px;font-family:Helvetica,Arial,sans-serif}
+  .modal .field input:focus{outline:none;border-color:#777}
+  .modal-btns{display:flex;gap:8px;margin-top:14px}
+  .modal-btns button{flex:1;padding:9px;border-radius:7px;border:none;font-size:13px;font-family:Helvetica,Arial,sans-serif;cursor:pointer}
+  .modal-save{background:#505050;color:#e0e0e0}
+  .modal-save:hover:not(:disabled){background:#5c5c5c}
+  .modal-save:disabled{opacity:.4;cursor:not-allowed}
+  .modal-cancel{background:transparent;color:#888;border:1px solid #444 !important}
+  .modal-cancel:hover{color:#bbb}
+  .modal-msg{font-size:12px;margin-top:10px;text-align:center;min-height:16px}
+
+  /* hamburger nav */
+  .nav{position:relative}
+  .menu-btn{font-size:15px;padding:7px 14px}
+  .nav-title{font-size:12px;color:#d8d8d8;letter-spacing:.6px;text-transform:uppercase;padding:0 16px;border-right:1px solid #444;align-self:stretch;display:flex;align-items:center;background:#3d3d3d}
+  .menu-dropdown{display:none;position:absolute;top:calc(100% + 6px);left:0;min-width:210px;background:#353535;border:1px solid #444;border-radius:10px;overflow:hidden;z-index:90;box-shadow:0 10px 28px rgba(0,0,0,.45)}
+  .menu-dropdown.open{display:block}
+  .menu-dropdown a{display:block;padding:10px 16px;font-size:12px;color:#999;text-decoration:none;letter-spacing:.4px;text-transform:uppercase;transition:background .12s}
+  .menu-dropdown a:hover{background:#444;color:#ccc}
+  .menu-dropdown a.active{background:#505050;color:#e0e0e0}
+  .menu-sep{height:1px;background:#444;margin:4px 0}
+  .nav > .nav-btn:first-child{border-radius:8px 0 0 8px}
+  .nav > .nav-btn:nth-last-child(2){border-radius:0 8px 8px 0}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.1/dist/umd/supabase.min.js"></script>
+<script>
+(async () => {
+  const { createClient } = supabase;
+  const sb = createClient('https://rabjbhtoufrrfznpztjt.supabase.co', 'sb_publishable_q-VtpKa9-S_uTXU3ZmrLDw_6dwIz7Ch');
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = '/'; return; }
+  window._sb = sb;
+  window._userEmail = session.user.email;
+  document.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('user-email');
+    if (el) el.textContent = session.user.email;
+  });
+})();
+async function signOut() {
+  await window._sb.auth.signOut();
+  window.location.href = '/';
+}
+</script>
+</head>
+<body>
+
+<h1>Aero Analytica Tool Kit</h1>
+<p class="sub">Aviation data extraction suite</p>
+<nav class="nav">
+  <a class="nav-btn menu-btn" onclick="toggleMenu(event)" style="cursor:pointer" title="Menu">&#9776;</a>
+  <span class="nav-title">Dashboard</span>
+  <span id="user-email" style="font-size:11px;color:#555;padding:0 12px;align-self:center;letter-spacing:.3px;margin-left:auto"></span>
+  <a class="nav-btn gear-btn" onclick="openSettings()" style="cursor:pointer;border-left:1px solid #444;color:#888" title="Settings">&#9881;</a>
+  <a class="nav-btn" onclick="signOut()" style="cursor:pointer;border-left:1px solid #444;color:#888" title="Sign out">&#9211; Sign out</a>
+  <div class="menu-dropdown" id="nav-menu">
+    <a href="/hub/">&#8962; Hub</a>
+    <a href="/vref/">VREF Valuations</a>
+    <a href="/brochure/">Brochure Extractor</a>
+    <a href="/dashboard/" class="active">Dashboard</a>
+    <a href="/performance/">Performance Calculator</a>
+    <div class="menu-sep"></div>
+    <a href="/tailbook/">Tailbook CRM</a>
+  </div>
+</nav>
+
+<div class="sbbar">
+  <button class="btn btn-primary" onclick="loadData()">&#8635; Refresh Data</button>
+  <span style="font-size:11px;color:#666;letter-spacing:.3px">Loads automatically using your signed-in account.</span>
+</div>
+<div id="err-msg" class="err"></div>
+<div id="loading" class="loading" style="display:none">Loading from Supabase…</div>
+
+<div id="main" style="display:none">
+
+  <!-- Stats -->
+  <div class="stat-row" id="stats"></div>
+
+  <!-- Filters -->
+  <div class="filter-bar">
+    <label>Models</label>
+    <div class="filter-group" id="model-chips"></div>
+    <label style="margin-left:8px">Value Type</label>
+    <select id="valueType" onchange="redrawCharts()">
+      <option value="both">Retail + Wholesale</option>
+      <option value="retail">Retail only</option>
+      <option value="wholesale">Wholesale only</option>
+    </select>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Retail Value — by Model Year</div>
+      <div class="chart-wrap"><canvas id="retailChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Wholesale Value — by Model Year</div>
+      <div class="chart-wrap"><canvas id="wholesaleChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Data table -->
+  <div class="section-label">All records</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th onclick="sortTable('report_quarter')">Quarter</th>
+        <th onclick="sortTable('model')">Model</th>
+        <th onclick="sortTable('model_year')">Year</th>
+        <th onclick="sortTable('retail_price')">Retail</th>
+        <th onclick="sortTable('wholesale_price')">Wholesale</th>
+        <th onclick="sortTable('pct_since_new')">% Since New</th>
+        <th onclick="sortTable('aftt')">AFTT</th>
+        <th onclick="sortTable('price_per_hr')">$/hr</th>
+        <th>Serial Range</th>
+      </tr></thead>
+      <tbody id="tbl-body"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+// ── Palette — distinct colors per model ──────────────────────────────────────
+const PALETTE = [
+  '#7aabda','#6abf7a','#e8a85f','#c47ec4','#5fc4c4',
+  '#d97070','#a0c06a','#7a9be8','#e8c45f','#c4a07e',
+];
+
+let allData = [], activeModels = new Set(), sortKey = 'model_year', sortDir = 1;
+let retailChart = null, wholesaleChart = null;
+
+// ── Load from Supabase ────────────────────────────────────────────────────────
+async function loadData() {
+  const err = document.getElementById('err-msg');
+  const loading = document.getElementById('loading');
+
+  err.textContent = '';
+  loading.style.display = 'block';
+  document.getElementById('main').style.display = 'none';
+
+  try {
+    if (!window._sb) throw new Error('Still signing in — try again in a second.');
+    const { data, error } = await window._sb
+      .from('vref_valuations')
+      .select('*')
+      .order('model_year', { ascending: true });
+    if (error) throw new Error(error.message);
+    allData = data || [];
+    loading.style.display = 'none';
+
+    if (!allData.length) {
+      err.textContent = 'No data found. Push some VREF extractions first.';
+      return;
+    }
+
+    // Default: all models active
+    const models = [...new Set(allData.map(r => r.model))].sort();
+    activeModels = new Set(models);
+
+    renderStats();
+    renderModelChips(models);
+    redrawCharts();
+    renderTable();
+    document.getElementById('main').style.display = 'block';
+
+  } catch(e) {
+    loading.style.display = 'none';
+    err.textContent = `Error: ${e.message}`;
+  }
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const models    = new Set(allData.map(r => r.model)).size;
+  const quarters  = [...new Set(allData.map(r => r.report_quarter))].sort();
+  const maxRetail = Math.max(...allData.map(r => r.retail_price || 0));
+  const minRetail = Math.min(...allData.filter(r=>r.retail_price).map(r => r.retail_price));
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Total Records</div><div class="stat-val">${allData.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Models Tracked</div><div class="stat-val">${models}</div></div>
+    <div class="stat-card"><div class="stat-label">Quarters</div><div class="stat-val">${quarters.length}</div><div class="stat-sub">${quarters[0]} – ${quarters[quarters.length-1]}</div></div>
+    <div class="stat-card"><div class="stat-label">Highest Retail</div><div class="stat-val">$${(maxRetail/1e6).toFixed(1)}M</div></div>
+    <div class="stat-card"><div class="stat-label">Lowest Retail</div><div class="stat-val">$${(minRetail/1e6).toFixed(1)}M</div></div>
+  `;
+}
+
+// ── Model chips ───────────────────────────────────────────────────────────────
+function renderModelChips(models) {
+  document.getElementById('model-chips').innerHTML = models.map((m,i) =>
+    `<span class="model-chip on" id="chip-${i}"
+      style="border-color:${PALETTE[i % PALETTE.length]}40;color:${activeModels.has(m)?PALETTE[i%PALETTE.length]:'#666'}"
+      onclick="toggleModel('${m}',${i})">${m}</span>`
+  ).join('');
+}
+
+function toggleModel(model, idx) {
+  if (activeModels.has(model)) activeModels.delete(model);
+  else activeModels.add(model);
+  const chip = document.getElementById('chip-' + idx);
+  const color = PALETTE[idx % PALETTE.length];
+  chip.style.color = activeModels.has(model) ? color : '#666';
+  redrawCharts();
+  renderTable();
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+function buildDatasets(valueKey) {
+  const models   = [...new Set(allData.map(r => r.model))].sort();
+  const quarters = [...new Set(allData.map(r => r.report_quarter).filter(Boolean))].sort();
+
+  return models
+    .filter(m => activeModels.has(m))
+    .map((model, i) => {
+      const color = PALETTE[i % PALETTE.length];
+      // One line per quarter for this model
+      const byQtr = quarters.map(q => {
+        const rows = allData.filter(r => r.model === model && r.report_quarter === q)
+          .sort((a,b) => a.model_year - b.model_year);
+        return rows.map(r => ({ x: r.model_year, y: r[valueKey] }));
+      });
+
+      // If only one quarter, just plot model_year vs value
+      if (quarters.length <= 1) {
+        const rows = allData.filter(r => r.model === model && r[valueKey])
+          .sort((a,b) => a.model_year - b.model_year);
+        return [{
+          label: model,
+          data: rows.map(r => ({ x: r.model_year, y: r[valueKey] })),
+          borderColor: color,
+          backgroundColor: color + '22',
+          tension: 0.3,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          borderWidth: 2,
+          spanGaps: false,
+        }];
+      }
+
+      // Multiple quarters — one dataset per quarter, same hue, varying opacity
+      return quarters.map((q, qi) => ({
+        label: `${model} (${q})`,
+        data: byQtr[qi].filter(p => p.y),
+        borderColor: color,
+        backgroundColor: color + '15',
+        borderWidth: qi === quarters.length - 1 ? 2.5 : 1.5,
+        borderDash: qi === quarters.length - 1 ? [] : [4,3],
+        tension: 0.3,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        opacity: 0.4 + (qi / quarters.length) * 0.6,
+        spanGaps: false,
+      }));
+    }).flat();
+}
+
+const CHART_OPTS = (yLabel) => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  interaction: { mode: 'nearest', intersect: true, axis: 'x' },
+  plugins: {
+    legend: {
+      labels: { color: '#888', font: { family: 'Helvetica', size: 11 }, boxWidth: 12, padding: 10 },
+    },
+    tooltip: {
+      backgroundColor: '#252525',
+      borderColor: '#444',
+      borderWidth: 1,
+      titleColor: '#d8d8d8',
+      bodyColor: '#aaa',
+      callbacks: {
+        title: items => items.length ? String(items[0].parsed.x) : '',
+        label: ctx => ` ${ctx.dataset.label}: $${Number(ctx.parsed.y).toLocaleString()}`,
+      }
+    }
+  },
+  scales: {
+    x: {
+      type: 'linear',
+      title: { display: true, text: 'Model Year', color: '#666', font: { size: 11 } },
+      ticks: { color: '#666', font: { size: 11 }, stepSize: 1, maxRotation: 45,
+        callback: v => Number.isInteger(v) ? String(v) : '' },
+      grid: { color: '#3a3a3a' },
+    },
+    y: {
+      title: { display: true, text: yLabel, color: '#666', font: { size: 11 } },
+      ticks: { color: '#666', font: { size: 11 },
+        callback: v => '$' + (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : (v/1e3).toFixed(0)+'K') },
+      grid: { color: '#3a3a3a' },
+    }
+  }
+});
+
+function redrawCharts() {
+  if (retailChart)    { retailChart.destroy();    retailChart = null; }
+  if (wholesaleChart) { wholesaleChart.destroy(); wholesaleChart = null; }
+
+  const vt = document.getElementById('valueType').value;
+  const retailVisible    = vt !== 'wholesale';
+  const wholesaleVisible = vt !== 'retail';
+
+  document.querySelector('.charts-grid').children[0].style.display = retailVisible    ? '' : 'none';
+  document.querySelector('.charts-grid').children[1].style.display = wholesaleVisible ? '' : 'none';
+
+  if (retailVisible) {
+    retailChart = new Chart(
+      document.getElementById('retailChart'),
+      { type: 'line', data: { datasets: buildDatasets('retail_price') }, options: CHART_OPTS('Retail Value ($)') }
+    );
+  }
+  if (wholesaleVisible) {
+    wholesaleChart = new Chart(
+      document.getElementById('wholesaleChart'),
+      { type: 'line', data: { datasets: buildDatasets('wholesale_price') }, options: CHART_OPTS('Wholesale Value ($)') }
+    );
+  }
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+function renderTable() {
+  const rows = allData
+    .filter(r => activeModels.has(r.model))
+    .sort((a,b) => {
+      const av = a[sortKey] ?? '', bv = b[sortKey] ?? '';
+      if (typeof av === 'number' && typeof bv === 'number') return (av-bv)*sortDir;
+      return String(av).localeCompare(String(bv))*sortDir;
+    });
+
+  document.getElementById('tbl-body').innerHTML = rows.map(r => `<tr>
+    <td>${r.report_quarter || '—'}</td>
+    <td>${r.model}</td>
+    <td>${r.model_year}</td>
+    <td>${r.retail_price ? '$'+Number(r.retail_price).toLocaleString() : '—'}</td>
+    <td>${r.wholesale_price ? '$'+Number(r.wholesale_price).toLocaleString() : '—'}</td>
+    <td>${r.pct_since_new != null ? r.pct_since_new+'%' : '—'}</td>
+    <td>${r.aftt != null ? Number(r.aftt).toLocaleString() : '—'}</td>
+    <td>${r.price_per_hr != null ? '$'+r.price_per_hr : '—'}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;color:#666">${r.serial_range_raw || '—'}</td>
+  </tr>`).join('') || '<tr><td colspan="9" class="empty">No records match current filters</td></tr>';
+}
+
+function sortTable(key) {
+  if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = 1; }
+  renderTable();
+}
+</script>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settings-modal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <h2>&#9881; Settings — Change Password</h2>
+    <div class="field">
+      <label>New Password</label>
+      <input type="password" id="cp-new" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Confirm Password</label>
+      <input type="password" id="cp-confirm" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="new-password">
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeSettings()">Cancel</button>
+      <button class="modal-save" id="cp-save" onclick="changePassword()">Save</button>
+    </div>
+    <div class="modal-msg" id="cp-msg"></div>
+  </div>
+</div>
+
+<script>
+function openSettings() {
+  document.getElementById('settings-modal').classList.add('open');
+  document.getElementById('cp-new').value = '';
+  document.getElementById('cp-confirm').value = '';
+  document.getElementById('cp-msg').textContent = '';
+  document.getElementById('cp-new').focus();
+}
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+document.addEventListener('keydown', e => {
+  const open = document.getElementById('settings-modal').classList.contains('open');
+  if (!open) return;
+  if (e.key === 'Escape') closeSettings();
+  if (e.key === 'Enter') changePassword();
+});
+async function changePassword() {
+  const pw1   = document.getElementById('cp-new').value;
+  const pw2   = document.getElementById('cp-confirm').value;
+  const msgEl = document.getElementById('cp-msg');
+  const btn   = document.getElementById('cp-save');
+
+  msgEl.style.color = '#d97070';
+  if (pw1.length < 8) { msgEl.textContent = 'Password must be at least 8 characters.'; return; }
+  if (pw1 !== pw2)    { msgEl.textContent = 'Passwords do not match.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  msgEl.textContent = '';
+
+  const { error } = await window._sb.auth.updateUser({ password: pw1 });
+
+  btn.disabled = false;
+  btn.textContent = 'Save';
+  if (error) {
+    msgEl.textContent = error.message;
+  } else {
+    msgEl.style.color = '#6abf7a';
+    msgEl.textContent = 'Password updated.';
+    setTimeout(closeSettings, 1200);
+  }
+}
+</script>
+
+<script>
+function toggleMenu(e) {
+  e.stopPropagation();
+  document.getElementById('nav-menu').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  const m = document.getElementById('nav-menu');
+  if (m && !m.contains(e.target)) m.classList.remove('open');
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('nav-menu')?.classList.remove('open');
+});
+</script>
+<script>
+// Auto-load the dashboard once the auth guard has finished signing in
+(async () => {
+  for (let i = 0; i < 100 && !window._sb; i++) await new Promise(r => setTimeout(r, 50));
+  if (!window._sb) return; // guard redirected to login
+  loadData();
+})();
+</script>
+</body>
+</html>
