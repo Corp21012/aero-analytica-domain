@@ -114,6 +114,21 @@ document.addEventListener('click', () => { const m=document.getElementById('nav-
       <div class="row"><label>Charter rate <span class="unit">$/hr</span></label><input type="text" inputmode="numeric" class="money" id="charterRate" value="$0" oninput="recalc()" onblur="blurMoney(this)"></div>
       <div class="row"><label>Management commission <span class="unit">%</span></label><input type="number" id="comm" min="0" max="50" step="1" value="15" oninput="recalc()"></div>
     </div>
+    <div class="panel" style="margin-top:14px">
+      <h2>Book value — VREF <span id="vrefQtr" style="text-transform:none;letter-spacing:0;color:#666"></span></h2>
+      <div id="vrefNone" style="font-size:12px;color:#666">Loading…</div>
+      <div id="vrefBody" style="display:none">
+        <div class="row"><label>Year model</label><select id="vrefYear" style="min-width:110px" onchange="vrefPick()"></select></div>
+        <div class="row"><label>Retail book value</label><span class="val" id="vrefRetail" style="font-family:ui-monospace,Menlo,monospace;color:#d8d8d8">—</span></div>
+        <div class="row"><label>Wholesale</label><span class="val" id="vrefWholesale" style="font-family:ui-monospace,Menlo,monospace;color:#999">—</span></div>
+        <div class="row"><label>Est. annual depreciation</label><span class="val" id="vrefDep" style="font-family:ui-monospace,Menlo,monospace;color:#DE9020">—</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="reset" onclick="vrefApplyAcq()">Use as acquisition cost</button>
+          <button class="reset" onclick="vrefApplyDep()">Use depreciation %</button>
+        </div>
+        <div id="vrefBasis" style="font-size:11px;color:#666;margin-top:8px"></div>
+      </div>
+    </div>
   </div>
 
   <div class="panel">
@@ -209,6 +224,7 @@ function loadAircraft(idx) {
   const s = $("specs");
   const chips = [["Cruise", AC.s_cruise ? AC.s_cruise + " kts" : null],["Range", AC.s_range ? AC.s_range.toLocaleString() + " nm" : null],["Pax", AC.s_pax],["Ceiling", AC.s_ceiling ? AC.s_ceiling.toLocaleString() + " ft" : null],["BFL", AC.s_bfl ? AC.s_bfl.toLocaleString() + " ft" : null],["BOW", AC.s_bow ? AC.s_bow.toLocaleString() + " lb" : null]];
   s.innerHTML = chips.filter(([, v]) => v != null).map(([k, v]) => '<span class="chip">' + k + "<b>" + v + "</b></span>").join("");
+  if (window._sb) fetchVref(); else setTimeout(() => window._sb && fetchVref(), 600);
 }
 
 function resetVar() {
@@ -263,7 +279,8 @@ function recalc() {
 
 function blurMoneySoft(el) { const v = parseFloat(String(el.value).replace(/[$,\s]/g, "")); el.value = isNaN(v) ? "" : fmtIn(v); }
 function openReportModal() {
-  document.getElementById("rptAcName").textContent = AC.name + " — captures all current assumptions";
+  document.getElementById("rptAcName").textContent = AC.name + (VREF_SEL ? " (" + VREF_SEL.year + " year model)" : "") + " — captures all current assumptions";
+  if (VREF_SEL && !document.getElementById("rptBook").value) document.getElementById("rptBook").value = fmtIn(VREF_SEL.retail);
   document.getElementById("rptResult").textContent = "";
   document.getElementById("rptModal").style.display = "block";
 }
@@ -283,6 +300,7 @@ function buildReportConfig() {
     showCharter: document.getElementById("rptShowCharter").checked,
     askPrice: num("rptAsk") || null, bookValue: num("rptBook") || null,
     note: document.getElementById("rptNote").value.trim() || null,
+    vref: VREF_SEL || null,
   };
 }
 
@@ -308,6 +326,74 @@ async function createReport() {
     r.style.color = "#df7a6e"; r.textContent = "Could not create report: " + e.message;
   }
   btn.disabled = false; btn.textContent = "Create & copy link";
+}
+
+/* ── VREF book values ── */
+let VREF = null, VREF_SEL = null;
+const vrefShortName = (n) => n.replace(/^(Bombardier|Cessna|Dassault|Embraer|Gulfstream|Beechcraft|Pilatus|Nextant Aerospace)\s+/, "");
+
+async function fetchVref() {
+  VREF = null; VREF_SEL = null;
+  const none = $("vrefNone"), body = $("vrefBody");
+  none.style.display = "block"; body.style.display = "none";
+  none.textContent = "Loading…"; $("vrefQtr").textContent = "";
+  try {
+    const short = vrefShortName(AC.name);
+    const { data, error } = await window._sb.from("vref_valuations")
+      .select("model,model_year,retail_price,wholesale_price,report_quarter")
+      .ilike("model", short).order("model_year", { ascending: true });
+    if (error) throw new Error(error.message);
+    if (!data || !data.length) { none.textContent = "No VREF data for this model yet."; return; }
+    VREF = data.filter((r) => r.retail_price);
+    $("vrefQtr").textContent = "(" + VREF[VREF.length - 1].report_quarter + ")";
+    const sel = $("vrefYear");
+    sel.innerHTML = VREF.map((r) => '<option value="' + r.model_year + '">' + r.model_year + "</option>").join("");
+    sel.value = VREF[VREF.length - 1].model_year;
+    none.style.display = "none"; body.style.display = "block";
+    vrefPick();
+  } catch (e) { none.textContent = "VREF lookup failed: " + e.message; }
+}
+
+function vrefDepEstimate(year) {
+  // Age-curve method: each adjacent year-model pair (y, y+1) observes one year of
+  // value decay. Average pairs within ±3 years of the selection; fall back to curve CAGR.
+  const byYear = {}; VREF.forEach((r) => { byYear[r.model_year] = r.retail_price; });
+  const drops = [];
+  for (let y = year - 3; y <= year + 2; y++) {
+    if (byYear[y] && byYear[y + 1] && byYear[y + 1] > byYear[y]) {
+      drops.push(1 - byYear[y] / byYear[y + 1]);
+    }
+  }
+  if (drops.length >= 2) return { pct: drops.reduce((a, b) => a + b, 0) / drops.length * 100, basis: drops.length + " adjacent year-model pairs near " + year };
+  const yrs = VREF.map((r) => r.model_year), lo = Math.min(...yrs), hi = Math.max(...yrs);
+  if (hi > lo && byYear[lo] && byYear[hi] && byYear[hi] > byYear[lo]) {
+    return { pct: (1 - Math.pow(byYear[lo] / byYear[hi], 1 / (hi - lo))) * 100, basis: "full " + (hi - lo) + "-year age curve (" + lo + "–" + hi + ")" };
+  }
+  return null;
+}
+
+function vrefPick() {
+  const y = parseInt($("vrefYear").value, 10);
+  const row = VREF.find((r) => r.model_year === y);
+  if (!row) return;
+  const dep = vrefDepEstimate(y);
+  VREF_SEL = { quarter: row.report_quarter, model: row.model, year: y,
+    retail: row.retail_price, wholesale: row.wholesale_price,
+    estDepPct: dep ? Math.round(dep.pct * 10) / 10 : null,
+    curve: VREF.map((r) => ({ year: r.model_year, retail: r.retail_price })) };
+  $("vrefRetail").textContent = fmt(row.retail_price);
+  $("vrefWholesale").textContent = row.wholesale_price ? fmt(row.wholesale_price) : "—";
+  $("vrefDep").textContent = dep ? (Math.round(dep.pct * 10) / 10) + "%/yr" : "—";
+  $("vrefBasis").textContent = dep ? "Estimated from " + dep.basis + ", VREF " + row.report_quarter + " age curve." : "Not enough adjacent year models to estimate.";
+}
+
+function vrefApplyAcq() { if (VREF_SEL) { setMoney("acq", VREF_SEL.retail); recalc(); } }
+function vrefApplyDep() {
+  if (VREF_SEL && VREF_SEL.estDepPct != null) {
+    $("depPct").value = VREF_SEL.estDepPct;
+    $("useDep").checked = true;
+    recalc();
+  }
 }
 
 init();
