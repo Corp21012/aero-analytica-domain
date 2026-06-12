@@ -414,6 +414,100 @@ function recordContext(type, r, fields, data) {
   return `Record type: ${p.unitName}\nPipeline stage: ${r.stage}\n${lines.join("\n")}${related}`;
 }
 
+/* ── OFAC sanctions screening ── */
+function ofacQueriesFor(type, r) {
+  const ok = (s) => s && s !== "—";
+  if (type === "contacts") return [r.name, r.company].filter(ok);
+  if (type === "deals") return [r.client, r.company].filter(ok);
+  if (type === "charter") return [r.client].filter(ok);
+  if (type === "aircraft") return [r.reg].filter(ok);
+  return [];
+}
+
+function OfacPanel({ type, record, onLog }) {
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState(null);
+  const queries = ofacQueriesFor(type, record);
+  if (!queries.length) return null;
+
+  const run = async () => {
+    setBusy(true); setRes(null);
+    try {
+      const { data: state } = await window._sb.from("ofac_sync_state")
+        .select("last_synced_at,entry_count,status").eq("id", 1).maybeSingle();
+      if (!state || !state.last_synced_at) throw new Error("Sanctions list hasn't finished its first sync yet — try again in a few minutes.");
+      const all = [];
+      const perQuery = {};
+      for (const q of queries) {
+        const { data, error } = await window._sb.rpc("ofac_screen", { q });
+        if (error) throw new Error(error.message);
+        perQuery[q] = (data || []).length;
+        (data || []).forEach((m) => all.push({ query: q, ...m }));
+      }
+      all.sort((a, b) => b.score - a.score);
+      const status = all.length ? "potential" : "clear";
+      const top = all.length ? all[0].score : null;
+      await window._sb.from("ofac_screenings").insert(queries.map((q) => ({
+        query: q, record_type: type, record_id: String(record.id),
+        top_score: top, match_count: perQuery[q] || 0,
+        list_synced_at: state.last_synced_at, result: status,
+      })));
+      setRes({ status, matches: all.slice(0, 8), syncedAt: state.last_synced_at });
+      onLog(record.id, status === "potential"
+        ? `OFAC screen: ${all.length} potential match${all.length > 1 ? "es" : ""} — manual review required (top score ${Math.round(top * 100)}%)`
+        : `OFAC screen: clear — ${queries.join(", ")}`);
+    } catch (e) {
+      setRes({ status: "error", msg: e.message });
+    }
+    setBusy(false);
+  };
+
+  const badge = (txt, fg, bg) => (
+    <span style={{ fontSize: 11, fontWeight: 700, color: fg, background: bg, padding: "3px 8px", borderRadius: 5, letterSpacing: "0.03em" }}>{txt}</span>
+  );
+
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 14, marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase" }}>Compliance — OFAC screening</div>
+        {res && res.status === "clear" && badge("CLEAR", C.green, C.greenSoft)}
+        {res && res.status === "potential" && badge("REVIEW REQUIRED", C.red, "#3a2422")}
+      </div>
+      <div style={{ fontSize: 12, color: C.slate, marginBottom: 10 }}>
+        Screens <span style={{ color: C.ink, fontFamily: MONO }}>{queries.join(" · ")}</span> against the OFAC SDN and Consolidated sanctions lists{type === "aircraft" ? " (tail numbers are matched against listed blocked aircraft)" : ""}.
+      </div>
+      <Btn small tone="amber" disabled={busy} onClick={run}>{busy ? "Screening…" : "Run OFAC screen"}</Btn>
+      {res && res.status === "error" && (
+        <div style={{ fontSize: 12, color: C.red, marginTop: 10 }}>{res.msg}</div>
+      )}
+      {res && res.status === "clear" && (
+        <div style={{ fontSize: 12, color: C.slate, marginTop: 10 }}>
+          No matches at or above the review threshold. List as of {new Date(res.syncedAt).toLocaleString()}. Logged to the audit trail.
+        </div>
+      )}
+      {res && res.status === "potential" && (
+        <div style={{ marginTop: 10 }}>
+          {res.matches.map((m, i) => (
+            <div key={i} style={{ padding: "8px 0", borderBottom: `1px solid #404040` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{m.matched_name}{m.is_alias ? <span style={{ color: C.slate, fontWeight: 400 }}> (alias)</span> : null}</span>
+                <span style={{ fontFamily: MONO, fontSize: 12, color: m.score >= 0.7 ? C.red : C.amber }}>{Math.round(m.score * 100)}%</span>
+              </div>
+              <div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>
+                vs "{m.query}" · {m.sdn_type || "entity"} · {m.source_list}{m.programs ? ` · ${m.programs}` : ""}
+              </div>
+              {m.remarks ? <div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>{m.remarks.slice(0, 160)}{m.remarks.length > 160 ? "…" : ""}</div> : null}
+            </div>
+          ))}
+          <div style={{ fontSize: 11, color: C.slate, marginTop: 8 }}>
+            Automated screen — not a determination. Verify potential matches at sanctionssearch.ofac.treas.gov before proceeding, and do not close the transaction until cleared.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── small parts ── */
 function SidePanel({ onClose, children, z = 50, width = 520, bg = C.bg }) {
   return (
@@ -788,6 +882,9 @@ function Detail({ type, record, fields, stages, data, activity, onClose, onUpdat
               {record.offMarket && <div style={{ fontSize: 12, color: C.slate, marginTop: 8 }}>Off market — find this airframe in the Registry view, where you can re-list it.</div>}
             </div>
           )}
+
+          {/* OFAC sanctions screening */}
+          <OfacPanel type={type} record={record} onLog={onLog} />
 
           {/* Google Workspace assistant */}
           <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 14, marginBottom: 16 }}>
