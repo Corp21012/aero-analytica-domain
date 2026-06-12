@@ -67,6 +67,25 @@
   tr:nth-child(even) td{background:#323232}
 
   .empty{text-align:center;padding:48px;color:#555;font-size:13px}
+
+  /* settings modal */
+  .gear-btn{font-size:14px;line-height:1}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:center;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal{background:#353535;border:1px solid #444;border-radius:12px;padding:28px;width:100%;max-width:340px}
+  .modal h2{font-size:15px;font-weight:600;color:#d8d8d8;margin-bottom:18px;letter-spacing:.3px}
+  .modal .field{margin-bottom:12px}
+  .modal .field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:6px}
+  .modal .field input{width:100%;box-sizing:border-box;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:7px;padding:9px 11px;color:#c8c8c8;font-size:13px;font-family:Helvetica,Arial,sans-serif}
+  .modal .field input:focus{outline:none;border-color:#777}
+  .modal-btns{display:flex;gap:8px;margin-top:14px}
+  .modal-btns button{flex:1;padding:9px;border-radius:7px;border:none;font-size:13px;font-family:Helvetica,Arial,sans-serif;cursor:pointer}
+  .modal-save{background:#505050;color:#e0e0e0}
+  .modal-save:hover:not(:disabled){background:#5c5c5c}
+  .modal-save:disabled{opacity:.4;cursor:not-allowed}
+  .modal-cancel{background:transparent;color:#888;border:1px solid #444 !important}
+  .modal-cancel:hover{color:#bbb}
+  .modal-msg{font-size:12px;margin-top:10px;text-align:center;min-height:16px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.1/dist/umd/supabase.min.js"></script>
 <script>
@@ -97,7 +116,8 @@ async function signOut() {
   <a class="nav-btn" href="aero_brochure_extractor.html">Brochure Extractor</a>
   <a class="nav-btn active" href="aero_dashboard.html">Dashboard</a>
   <span id="user-email" style="font-size:11px;color:#555;padding:0 12px;align-self:center;letter-spacing:.3px"></span>
-  <a class="nav-btn" onclick="signOut()" style="cursor:pointer;border-left:1px solid #444;color:#888" title="Sign out">⏻ Sign out</a>
+    <a class="nav-btn gear-btn" onclick="openSettings()" style="cursor:pointer;border-left:1px solid #444;color:#888" title="Settings">&#9881;</a>
+<a class="nav-btn" onclick="signOut()" style="cursor:pointer;border-left:1px solid #444;color:#888" title="Sign out">⏻ Sign out</a>
 </nav>
 
 <div class="sbbar">
@@ -388,6 +408,71 @@ function renderTable() {
 function sortTable(key) {
   if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = 1; }
   renderTable();
+}
+</script>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settings-modal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <h2>&#9881; Settings — Change Password</h2>
+    <div class="field">
+      <label>New Password</label>
+      <input type="password" id="cp-new" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Confirm Password</label>
+      <input type="password" id="cp-confirm" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="new-password">
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeSettings()">Cancel</button>
+      <button class="modal-save" id="cp-save" onclick="changePassword()">Save</button>
+    </div>
+    <div class="modal-msg" id="cp-msg"></div>
+  </div>
+</div>
+
+<script>
+function openSettings() {
+  document.getElementById('settings-modal').classList.add('open');
+  document.getElementById('cp-new').value = '';
+  document.getElementById('cp-confirm').value = '';
+  document.getElementById('cp-msg').textContent = '';
+  document.getElementById('cp-new').focus();
+}
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+document.addEventListener('keydown', e => {
+  const open = document.getElementById('settings-modal').classList.contains('open');
+  if (!open) return;
+  if (e.key === 'Escape') closeSettings();
+  if (e.key === 'Enter') changePassword();
+});
+async function changePassword() {
+  const pw1   = document.getElementById('cp-new').value;
+  const pw2   = document.getElementById('cp-confirm').value;
+  const msgEl = document.getElementById('cp-msg');
+  const btn   = document.getElementById('cp-save');
+
+  msgEl.style.color = '#d97070';
+  if (pw1.length < 8) { msgEl.textContent = 'Password must be at least 8 characters.'; return; }
+  if (pw1 !== pw2)    { msgEl.textContent = 'Passwords do not match.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  msgEl.textContent = '';
+
+  const { error } = await window._sb.auth.updateUser({ password: pw1 });
+
+  btn.disabled = false;
+  btn.textContent = 'Save';
+  if (error) {
+    msgEl.textContent = error.message;
+  } else {
+    msgEl.style.color = '#6abf7a';
+    msgEl.textContent = 'Password updated.';
+    setTimeout(closeSettings, 1200);
+  }
 }
 </script>
 </body>
