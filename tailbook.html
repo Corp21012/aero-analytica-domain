@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tailbook — CRM</title>
+<link href="https://fonts.googleapis.com/css2?family=B612:ital,wght@0,400;0,700;1,400&family=B612+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.1/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://rabjbhtoufrrfznpztjt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_q-VtpKa9-S_uTXU3ZmrLDw_6dwIz7Ch';
+window._sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+window._authReady = (async () => {
+  const { data: { session } } = await window._sb.auth.getSession();
+  if (!session) { window.location.href = 'index.html'; return null; }
+  window._uid = session.user.id;
+  window._userEmail = session.user.email;
+  document.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('user-email');
+    if (el) el.textContent = session.user.email;
+  });
+  return session;
+})();
+async function signOut() {
+  await window._sb.auth.signOut();
+  window.location.href = 'index.html';
+}
+</script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#EDF0F3;font-family:'B612',system-ui,sans-serif}
+  .topbar{display:flex;align-items:center;gap:4px;padding:8px 14px;background:#15202B;border-bottom:2px solid #DE9020}
+  .topbar .brand{color:#EDF0F3;font-size:13px;font-weight:700;letter-spacing:.5px;margin-right:auto}
+  .topbar .brand small{color:#DE9020;font-weight:400;margin-left:8px;font-family:'B612 Mono',monospace;font-size:10px}
+  .topbar span#user-email{font-size:11px;color:#4C5A68;margin-right:6px}
+  .topbar a{font-size:12px;color:#9FB0BF;cursor:pointer;text-decoration:none;padding:5px 11px;border:1px solid #2C3B4A;border-radius:6px;transition:background .15s}
+  .topbar a:hover{background:#1F2D3B;color:#EDF0F3}
+  #root{min-height:calc(100vh - 44px)}
+  .loading{padding:60px;text-align:center;color:#4C5A68;font-size:13px}
+  /* settings modal — Tailbook palette */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(21,32,43,.45);z-index:200;align-items:center;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal{background:#FFFFFF;border:1px solid #D8DEE5;border-radius:12px;padding:28px;width:100%;max-width:340px;font-family:'B612',system-ui,sans-serif}
+  .modal h2{font-size:15px;color:#15202B;margin:0 0 18px}
+  .modal .field{margin-bottom:12px}
+  .modal .field label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#4C5A68;margin-bottom:6px}
+  .modal .field input{width:100%;background:#EDF0F3;border:1px solid #D8DEE5;border-radius:7px;padding:9px 11px;color:#15202B;font-size:13px;font-family:'B612 Mono',monospace}
+  .modal .field input:focus{outline:none;border-color:#DE9020}
+  .modal-btns{display:flex;gap:8px;margin-top:14px}
+  .modal-btns button{flex:1;padding:9px;border-radius:7px;border:none;font-size:13px;font-family:'B612',sans-serif;cursor:pointer}
+  .modal-save{background:#15202B;color:#EDF0F3}
+  .modal-save:hover:not(:disabled){background:#2C3B4A}
+  .modal-cancel{background:transparent;color:#4C5A68;border:1px solid #D8DEE5 !important}
+  .modal-msg{font-size:12px;margin-top:10px;text-align:center;min-height:16px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">TAILBOOK <small>business aviation CRM</small></span>
+  <span id="user-email"></span>
+  <a href="hub.html" title="Back to hub">&#8962; Hub</a>
+  <a onclick="openSettings()" title="Settings">&#9881;</a>
+  <a onclick="signOut()" title="Sign out">&#9211;</a>
+</div>
+<div id="root"><div class="loading">Loading Tailbook&#8230;</div></div>
+
+<div class="modal-overlay" id="settings-modal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <h2>&#9881; Settings</h2>
+    <div class="field">
+      <label>New Password</label>
+      <input type="password" id="cp-new" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Confirm Password</label>
+      <input type="password" id="cp-confirm" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Anthropic API Key <span style="text-transform:none;letter-spacing:0">(optional — Tailbook AI features)</span></label>
+      <input type="password" id="cp-apikey" placeholder="sk-ant-...">
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeSettings()">Cancel</button>
+      <button class="modal-save" id="cp-save" onclick="saveSettings()">Save</button>
+    </div>
+    <div class="modal-msg" id="cp-msg"></div>
+  </div>
+</div>
+<script>
+function openSettings() {
+  document.getElementById('settings-modal').classList.add('open');
+  document.getElementById('cp-new').value = '';
+  document.getElementById('cp-confirm').value = '';
+  document.getElementById('cp-apikey').value = localStorage.getItem('tb_anthropic_key') || '';
+  document.getElementById('cp-msg').textContent = '';
+}
+function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('settings-modal').classList.contains('open')) return;
+  if (e.key === 'Escape') closeSettings();
+  if (e.key === 'Enter') saveSettings();
+});
+async function saveSettings() {
+  const pw1 = document.getElementById('cp-new').value;
+  const pw2 = document.getElementById('cp-confirm').value;
+  const key = document.getElementById('cp-apikey').value.trim();
+  const msgEl = document.getElementById('cp-msg');
+  const btn = document.getElementById('cp-save');
+  msgEl.style.color = '#C2402A';
+
+  if (key) localStorage.setItem('tb_anthropic_key', key);
+  else localStorage.removeItem('tb_anthropic_key');
+
+  if (pw1 || pw2) {
+    if (pw1.length < 8) { msgEl.textContent = 'Password must be at least 8 characters.'; return; }
+    if (pw1 !== pw2)    { msgEl.textContent = 'Passwords do not match.'; return; }
+    btn.disabled = true; btn.textContent = 'Saving\u2026';
+    const { error } = await window._sb.auth.updateUser({ password: pw1 });
+    btn.disabled = false; btn.textContent = 'Save';
+    if (error) { msgEl.textContent = error.message; return; }
+  }
+  msgEl.style.color = '#2F7D5B';
+  msgEl.textContent = 'Saved.';
+  setTimeout(closeSettings, 900);
+}
+</script>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+
+/* ── Tailbook — business aviation CRM ─────────────────────────────
+   Palette: aluminum #EDF0F3 · ink #15202B · slate #4C5A68
+            annunciator amber #DE9020 · advisory green #2F7D5B · caution #C2402A
+   Type: B612 (Airbus cockpit face) · B612 Mono for registrations/data
+─────────────────────────────────────────────────────────────────── */
+
+const C = {
+  bg: "#EDF0F3", panel: "#FFFFFF", ink: "#15202B", slate: "#4C5A68",
+  line: "#D8DEE5", amber: "#DE9020", amberSoft: "#FBF1DF",
+  green: "#2F7D5B", greenSoft: "#E4F1EA", red: "#C2402A",
+  navySoft: "#E3E9F0",
+};
+const FONT = "'B612', system-ui, sans-serif";
+const MONO = "'B612 Mono', ui-monospace, monospace";
+
+
+/* ── airframe catalog — makes & models, current production through legacy ── */
+const AIRCRAFT_CATALOG = {
+  "Gulfstream": ["G800", "G700", "G650ER", "G650", "G600", "G500 (2018+)", "G550", "G450", "G400", "G350", "G280", "G200", "G150", "G100", "GV", "GIV-SP", "GIV", "GIII"],
+  "Bombardier": ["Global 8000", "Global 7500", "Global 6500", "Global 6000", "Global 5500", "Global 5000", "Global Express XRS", "Global Express", "Challenger 3500", "Challenger 650", "Challenger 605", "Challenger 604", "Challenger 601", "Challenger 600", "Challenger 350", "Challenger 300", "Challenger 850"],
+  "Learjet": ["75 Liberty", "75", "70", "60XR", "60", "45XR", "45", "40XR", "40", "36A", "35A", "31A"],
+  "Cessna Citation": ["Ascend", "Longitude", "Latitude", "Sovereign+", "Sovereign", "X+", "X", "XLS Gen2", "XLS+", "XLS", "Excel", "CJ4 Gen3", "CJ4 Gen2", "CJ4", "CJ3 Gen2", "CJ3+", "CJ3", "CJ2+", "CJ2", "CJ1+", "CJ1", "M2 Gen2", "M2", "Mustang", "Encore+", "Encore", "Ultra", "Bravo", "VII", "V", "S/II", "III", "II"],
+  "Dassault Falcon": ["10X", "8X", "7X", "6X", "900LX", "900EX EASy", "900EX", "900DX", "900C", "900B", "900", "2000LXS", "2000LX", "2000EX EASy", "2000EX", "2000S", "2000", "50EX", "50", "20", "10"],
+  "Embraer": ["Praetor 600", "Praetor 500", "Phenom 300E", "Phenom 300", "Phenom 100EX", "Phenom 100EV", "Phenom 100", "Legacy 650E", "Legacy 650", "Legacy 600", "Legacy 500", "Legacy 450", "Lineage 1000E", "Lineage 1000"],
+  "Hawker / Beechjet": ["Hawker 4000", "Hawker 1000", "Hawker 900XP", "Hawker 850XP", "Hawker 800XP", "Hawker 800A", "Hawker 750", "Hawker 400XP", "Beechjet 400A", "Premier IA", "Premier I"],
+  "HondaJet": ["Echelon", "Elite II", "Elite S", "Elite", "HA-420"],
+  "Pilatus": ["PC-24", "PC-12 NGX", "PC-12 NG", "PC-12"],
+  "Cirrus": ["Vision Jet G2+", "Vision Jet G2", "Vision Jet G1"],
+  "SyberJet": ["SJ30i", "SJ30"],
+  "Eclipse": ["550", "500"],
+  "Boeing BBJ": ["BBJ 737-7", "BBJ 737-8", "BBJ", "BBJ2", "BBJ3", "BBJ 787-8", "BBJ 787-9", "BBJ 777X"],
+  "Airbus ACJ": ["ACJ TwoTwenty", "ACJ319neo", "ACJ320neo", "ACJ318", "ACJ319", "ACJ320", "ACJ330neo", "ACJ350 XWB"],
+  "Beechcraft King Air": ["360", "360ER", "350i", "350", "260", "250", "B200", "C90GTx"],
+  "Daher": ["TBM 960", "TBM 940", "TBM 930", "TBM 910", "TBM 900", "TBM 850", "TBM 700", "Kodiak 900", "Kodiak 100"],
+  "Piper": ["M700 Fury", "M600 SLS", "M600", "M500", "Meridian"],
+  "Epic": ["E1000 GX", "E1000"],
+};
+
+const PIPELINES = {
+  aircraft: {
+    label: "Aircraft",
+    unitName: "aircraft",
+    stages: ["Sourcing", "Valuation", "Listed", "Under LOI", "Pre-buy", "Closing", "Sold"],
+    fields: [
+      { k: "reg", label: "Registration", ph: "N450GD", mono: true, req: true },
+      { k: "make", label: "Make", ph: "Gulfstream", select: "make", req: true },
+      { k: "model", label: "Model", ph: "G450", select: "model", req: true },
+      { k: "year", label: "Year", ph: "2014" },
+      { k: "serial", label: "Serial no.", ph: "4301", mono: true },
+      { k: "ttaf", label: "Total time (TTAF)", ph: "3,250 hrs" },
+      { k: "ask", label: "Asking price", ph: "$16,500,000" },
+      { k: "base", label: "Home base", ph: "KTEB", mono: true },
+      { k: "owner", label: "Owner / rep", ph: "Marta Keller" },
+      { k: "email", label: "Owner email", ph: "marta@example.com" },
+    ],
+    title: (r) => r.make ? `${r.make} ${r.model || ""}`.trim() : (r.model || "Aircraft"),
+    placard: (r) => r.reg,
+    sub: (r) => [r.year, r.ttaf, r.base].filter(Boolean).join(" · "),
+    money: (r) => r.ask,
+  },
+  deals: {
+    label: "Acquisitions",
+    unitName: "deal",
+    stages: ["New lead", "Qualified", "Requirements", "Matched", "LOI sent", "Contract", "Closed"],
+    fields: [
+      { k: "client", label: "Client", ph: "Daniel Osei", req: true },
+      { k: "company", label: "Company", ph: "Osei Capital" },
+      { k: "email", label: "Email", ph: "daniel@example.com" },
+      { k: "requirement", label: "Requirement", ph: "Super-mid, 9 pax, coast-to-coast" },
+      { k: "budget", label: "Budget", ph: "$12–14M" },
+    ],
+    title: (r) => r.client || "Deal",
+    placard: (r) => r.company,
+    sub: (r) => r.requirement,
+    money: (r) => r.budget,
+  },
+  charter: {
+    label: "Charter",
+    unitName: "trip",
+    stages: ["Inquiry", "Quoted", "Negotiating", "Booked", "Flown"],
+    fields: [
+      { k: "client", label: "Client", ph: "Priya Nair", req: true },
+      { k: "email", label: "Email", ph: "priya@example.com" },
+      { k: "route", label: "Route", ph: "KTEB → EGGW", mono: true },
+      { k: "date", label: "Departure", ph: "2026-07-02" },
+      { k: "pax", label: "Passengers", ph: "6" },
+      { k: "quote", label: "Quote", ph: "$78,000" },
+    ],
+    title: (r) => r.client || "Trip",
+    placard: (r) => r.route,
+    sub: (r) => [r.date, r.pax && `${r.pax} pax`].filter(Boolean).join(" · "),
+    money: (r) => r.quote,
+  },
+};
+
+const CONTACT_FIELDS = [
+  { k: "name", label: "Name", ph: "Marta Keller", req: true },
+  { k: "role", label: "Role", ph: "Owner / Buyer / Charter / MRO" },
+  { k: "company", label: "Company", ph: "Keller Aviation Holdings" },
+  { k: "email", label: "Email", ph: "marta@example.com" },
+  { k: "phone", label: "Phone", ph: "+1 201 555 0148" },
+];
+
+const STORE_KEY = "tailbook:v1";
+
+/* ── view preferences, column layout, custom fields ── */
+const PIPE_KEYS = Object.keys(PIPELINES);
+function withPrefs(d) {
+  const p = d.prefs || {};
+  const per = (fill) => Object.fromEntries(PIPE_KEYS.map((t) => [t, fill()]));
+  return {
+    ...d,
+    links: d.links || [],
+    prefs: {
+      view: { ...per(() => "board"), ...(p.view || {}) },
+      customFields: { ...per(() => []), ...(p.customFields || {}) },
+      columns: { ...per(() => ({ order: null, hidden: [] })), ...(p.columns || {}) },
+    },
+  };
+}
+function linksFor(data, kind, id) {
+  // kind: 'aircraft' → links where aircraftId===id; otherwise refType===kind && refId===id
+  return (data.links || []).filter((l) => kind === "aircraft" ? l.aircraftId === id : (l.refType === kind && l.refId === id));
+}
+function getFields(type, data) {
+  return [...PIPELINES[type].fields, ...data.prefs.customFields[type].map((f) => ({ ...f, custom: true }))];
+}
+function orderedFields(type, data) {
+  const all = getFields(type, data);
+  const ord = data.prefs.columns[type].order;
+  if (!ord) return all;
+  const map = Object.fromEntries(all.map((f) => [f.k, f]));
+  const seq = ord.filter((k) => map[k]).map((k) => map[k]);
+  all.forEach((f) => { if (!ord.includes(f.k)) seq.push(f); });
+  return seq;
+}
+
+const SEED = {
+  aircraft: [
+    { id: "a1", stage: "Listed", reg: "N450GD", make: "Gulfstream", model: "G450", year: "2014", serial: "4301", ttaf: "3,250 hrs", ask: "$16,500,000", base: "KTEB", owner: "Marta Keller", email: "marta.keller@example.com" },
+    { id: "a2", stage: "Pre-buy", reg: "N88XL", make: "Cessna Citation", model: "XLS+", year: "2017", serial: "560-6231", ttaf: "2,110 hrs", ask: "$9,200,000", base: "KPDK", owner: "Tom Reyes", email: "tom.reyes@example.com" },
+    { id: "a3", stage: "Sourcing", reg: "N302PE", make: "Embraer", model: "Phenom 300E", year: "2021", serial: "50500612", ttaf: "980 hrs", ask: "$11,400,000", base: "KSDL", owner: "Aviate Partners", email: "fleet@example.com" },
+    { id: "a4", stage: "Under LOI", reg: "N735CL", make: "Bombardier", model: "Challenger 350", year: "2019", serial: "20735", ttaf: "1,640 hrs", ask: "$18,900,000", base: "KHOU", owner: "G. Whitfield", email: "gw@example.com" },
+  ],
+  deals: [
+    { id: "d1", stage: "Requirements", client: "Daniel Osei", company: "Osei Capital", email: "daniel@example.com", requirement: "Super-mid, 9 pax, coast-to-coast", budget: "$12–14M" },
+    { id: "d2", stage: "LOI sent", client: "Hana Suzuki", company: "Kestrel Group", email: "hana@example.com", requirement: "Large-cabin, transpacific", budget: "$38M" },
+    { id: "d3", stage: "New lead", client: "Marc Dubois", company: "—", email: "marc@example.com", requirement: "First aircraft, light jet", budget: "$6M" },
+  ],
+  charter: [
+    { id: "c1", stage: "Quoted", client: "Priya Nair", email: "priya@example.com", route: "KTEB → EGGW", date: "2026-07-02", pax: "6", quote: "$78,000" },
+    { id: "c2", stage: "Booked", client: "Leo Marchetti", email: "leo@example.com", route: "KVNY → KASE", date: "2026-06-19", pax: "4", quote: "$21,500" },
+  ],
+  contacts: [
+    { id: "p1", name: "Marta Keller", role: "Owner", company: "Keller Aviation Holdings", email: "marta.keller@example.com", phone: "+1 201 555 0148" },
+    { id: "p2", name: "Daniel Osei", role: "Buyer", company: "Osei Capital", email: "daniel@example.com", phone: "+1 646 555 0107" },
+    { id: "p3", name: "Priya Nair", role: "Charter client", company: "Nair Family Office", email: "priya@example.com", phone: "+44 20 7946 0921" },
+  ],
+  activity: {},
+  links: [{ id: "l1", aircraftId: "a4", refType: "deals", refId: "d2" }],
+};
+
+/* ── persistence ── */
+async function loadStore() {
+  try {
+    const { data: row, error } = await window._sb
+      .from("tailbook_store").select("data").eq("user_id", window._uid).maybeSingle();
+    if (!error && row && row.data && Object.keys(row.data).length) return row.data;
+  } catch (e) { console.error("Cloud load failed", e); }
+  try {
+    const local = localStorage.getItem(STORE_KEY);
+    if (local) return JSON.parse(local);
+  } catch (e) {}
+  return null;
+}
+async function saveStore(data) {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch (e) {}
+  try {
+    const { error } = await window._sb.from("tailbook_store")
+      .upsert({ user_id: window._uid, data, updated_at: new Date().toISOString() });
+    if (error) console.error("Cloud save failed", error.message);
+  } catch (e) { console.error("Cloud save failed", e); }
+}
+
+/* ── Claude (optional — needs an API key saved under the gear menu) ── */
+async function askClaude(prompt, withWorkspace = true) {
+  const apiKey = localStorage.getItem("tb_anthropic_key");
+  if (!apiKey) throw new Error("AI features need an Anthropic API key — add one under the gear menu (top right).");
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1000,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || "Request failed");
+  return (data.content || [])
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("\n")
+    .trim();
+}
+
+function recordContext(type, r, fields, data) {
+  const p = PIPELINES[type];
+  const lines = fields.map((f) => r[f.k] ? `${f.label}: ${r[f.k]}` : null).filter(Boolean);
+  let related = "";
+  if (data) {
+    if (type === "aircraft") {
+      const refs = linksFor(data, "aircraft", r.id).map((l) => {
+        const rec = (data[l.refType] || []).find((x) => x.id === l.refId);
+        return rec ? `- ${PIPELINES[l.refType].label}: ${PIPELINES[l.refType].title(rec)} (stage: ${rec.stage})` : null;
+      }).filter(Boolean);
+      if (refs.length) related = `\nRelated deals/trips:\n${refs.join("\n")}`;
+      if (r.sales && r.sales.length) related += `\nSale history: ${r.sales.map((sl) => `${sl.price || "undisclosed"} on ${sl.date}${sl.buyer ? " to " + sl.buyer : ""}`).join("; ")}`;
+    } else {
+      const refs = linksFor(data, type, r.id).map((l) => {
+        const ac = data.aircraft.find((a) => a.id === l.aircraftId);
+        return ac ? `- Aircraft: ${ac.model} ${ac.reg} (stage: ${ac.stage}${ac.offMarket ? ", off market" : ""}${ac.ask ? ", asking " + ac.ask : ""})` : null;
+      }).filter(Boolean);
+      if (refs.length) related = `\nLinked aircraft:\n${refs.join("\n")}`;
+    }
+  }
+  return `Record type: ${p.unitName}\nPipeline stage: ${r.stage}\n${lines.join("\n")}${related}`;
+}
+
+/* ── small parts ── */
+function SidePanel({ onClose, children, z = 50, width = 520, bg = C.bg }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(21,32,43,0.32)", zIndex: z }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        position: "absolute", top: 0, right: 0, bottom: 0, width: "100%", maxWidth: width,
+        background: bg, borderLeft: `1px solid ${C.line}`, boxShadow: "-10px 0 28px rgba(21,32,43,0.18)",
+        overflowY: "auto", animation: "tbSlideIn 0.18s ease-out",
+      }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Placard({ text }) {
+  if (!text) return null;
+  return (
+    <span style={{
+      fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
+      color: C.ink, background: "#F3F5F7", border: `1px solid ${C.line}`,
+      borderRadius: 3, padding: "2px 6px", whiteSpace: "nowrap",
+    }}>{text}</span>
+  );
+}
+
+function StageStrip({ stages, current }) {
+  const idx = stages.indexOf(current);
+  const last = idx === stages.length - 1;
+  return (
+    <div style={{ display: "flex", gap: 3 }} aria-hidden="true">
+      {stages.map((s, i) => (
+        <div key={s} style={{
+          flex: 1, height: 4, borderRadius: 2,
+          background: i < idx ? "#B9C3CD" : i === idx ? (last ? C.green : C.amber) : "#E5E9ED",
+        }} />
+      ))}
+    </div>
+  );
+}
+
+function Btn({ children, onClick, tone = "ghost", small, disabled, style, ...rest }) {
+  const tones = {
+    primary: { background: C.ink, color: "#fff", border: `1px solid ${C.ink}` },
+    amber: { background: C.amber, color: "#fff", border: `1px solid ${C.amber}` },
+    ghost: { background: "#fff", color: C.ink, border: `1px solid ${C.line}` },
+    danger: { background: "#fff", color: C.red, border: `1px solid ${C.line}` },
+  };
+  return (
+    <button onClick={onClick} disabled={disabled} {...rest} style={{
+      fontFamily: FONT, fontSize: small ? 12 : 13, fontWeight: 700,
+      padding: small ? "6px 10px" : "10px 14px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
+      opacity: disabled ? 0.5 : 1, ...tones[tone], ...style,
+    }}>{children}</button>
+  );
+}
+
+function ConfirmBtn({ children, confirmLabel = "Confirm?", onConfirm, style }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  return (
+    <Btn small tone="danger" style={armed ? { background: C.red, color: "#fff", borderColor: C.red, ...style } : style}
+      onClick={() => { if (armed) { setArmed(false); onConfirm(); } else setArmed(true); }}>
+      {armed ? confirmLabel : children}
+    </Btn>
+  );
+}
+
+function Field({ def, value, onChange, all }) {
+  const [custom, setCustom] = useState(false);
+  let options = null;
+  if (def.select === "make") options = Object.keys(AIRCRAFT_CATALOG);
+  if (def.select === "model") {
+    const make = (all && all.make) || "";
+    options = AIRCRAFT_CATALOG[make] || null; // unknown/custom make → free text
+  }
+  const inputStyle = {
+    width: "100%", boxSizing: "border-box", padding: "10px 12px",
+    border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14,
+    fontFamily: def.mono ? MONO : FONT, color: C.ink, background: "#fff", outline: "none",
+  };
+  const showSelect = options && !custom && !(value && !options.includes(value));
+  return (
+    <label style={{ display: "block", marginBottom: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
+        <span>{def.label}{def.req ? " *" : ""}</span>
+        {options && (custom || (value && !options.includes(value))) && (
+          <button onClick={(e) => { e.preventDefault(); setCustom(false); onChange(def.k, ""); }}
+            style={{ background: "none", border: "none", color: C.amber, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, padding: 0 }}>
+            Back to list
+          </button>
+        )}
+      </div>
+      {showSelect ? (
+        <select value={value || ""} onChange={(e) => {
+          if (e.target.value === "__other__") { setCustom(true); onChange(def.k, ""); }
+          else onChange(def.k, e.target.value);
+        }} style={inputStyle}>
+          <option value="">{def.select === "model" && !(all && all.make) ? "Choose a make first…" : `Select ${def.label.toLowerCase()}…`}</option>
+          {options.map((o) => <option key={o} value={o}>{o}</option>)}
+          <option value="__other__">Other / not listed…</option>
+        </select>
+      ) : (
+        <input
+          value={value || ""}
+          placeholder={options ? `Custom ${def.label.toLowerCase()}` : def.ph}
+          onChange={(e) => onChange(def.k, e.target.value)}
+          style={inputStyle}
+        />
+      )}
+    </label>
+  );
+}
+
+/* ── card ── */
+function Card({ type, r, onOpen, onStage }) {
+  const p = PIPELINES[type];
+  const idx = p.stages.indexOf(r.stage);
+  const arrow = (dir) => (e) => { e.stopPropagation(); onStage(r, p.stages[idx + dir]); };
+  const arrowStyle = (disabled) => ({
+    border: `1px solid ${C.line}`, background: "#fff", color: disabled ? "#C3CCD4" : C.ink,
+    borderRadius: 5, width: 26, height: 22, fontSize: 12, fontWeight: 700, cursor: disabled ? "default" : "pointer",
+    fontFamily: FONT, lineHeight: 0, padding: 0,
+  });
+  return (
+    <div onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onOpen(); }} style={{
+      display: "block", width: "100%", textAlign: "left", background: C.panel,
+      border: `1px solid ${C.line}`, borderRadius: 8, padding: "12px 12px 10px",
+      marginBottom: 8, cursor: "pointer", fontFamily: FONT,
+      boxShadow: "0 1px 2px rgba(21,32,43,0.05)",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.ink, lineHeight: 1.3 }}>{p.title(r)}</div>
+        <Placard text={p.placard(r)} />
+      </div>
+      {p.sub(r) ? <div style={{ fontSize: 12, color: C.slate, marginTop: 3 }}>{p.sub(r)}</div> : null}
+      {p.money(r) ? (
+        <div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: C.ink, marginTop: 6 }}>{p.money(r)}</div>
+      ) : null}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+        <button onClick={idx > 0 ? arrow(-1) : (e) => e.stopPropagation()} disabled={idx <= 0} aria-label="Move to previous stage" style={arrowStyle(idx <= 0)}>‹</button>
+        <div style={{ flex: 1 }}><StageStrip stages={p.stages} current={r.stage} /></div>
+        <button onClick={idx < p.stages.length - 1 ? arrow(1) : (e) => e.stopPropagation()} disabled={idx >= p.stages.length - 1} aria-label="Move to next stage" style={arrowStyle(idx >= p.stages.length - 1)}>›</button>
+      </div>
+    </div>
+  );
+}
+
+/* ── kanban board ── */
+function Board({ type, records, onOpen, onStage }) {
+  const p = PIPELINES[type];
+  return (
+    <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "12px 14px 24px", WebkitOverflowScrolling: "touch" }}>
+      {p.stages.map((stage) => {
+        const items = records.filter((r) => r.stage === stage);
+        const final = stage === p.stages[p.stages.length - 1];
+        return (
+          <div key={stage} style={{ minWidth: 260, width: "76vw", maxWidth: 300, flexShrink: 0 }}>
+            <div style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "8px 10px", borderRadius: 6, marginBottom: 8,
+              background: final ? C.greenSoft : C.navySoft,
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: final ? C.green : C.ink }}>{stage}</span>
+              <span style={{ fontFamily: MONO, fontSize: 12, color: C.slate }}>{items.length}</span>
+            </div>
+            {items.map((r) => <Card key={r.id} type={type} r={r} onOpen={() => onOpen(type, r.id)} onStage={onStage} />)}
+            {items.length === 0 && (
+              <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 14, fontSize: 12, color: C.slate, textAlign: "center" }}>
+                No {p.unitName}s here yet
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── detail sheet ── */
+function Detail({ type, record, fields, data, activity, onClose, onUpdate, onDelete, onLog, onLinkToggle, onSale }) {
+  const [picker, setPicker] = useState(null); // 'deals' | 'charter' | 'aircraft'
+  const [sale, setSale] = useState(null);     // {date, price, buyer, dealId} while recording
+  const p = PIPELINES[type];
+  const [edit, setEdit] = useState({ ...record });
+  const [editing, setEditing] = useState(false);
+  const [note, setNote] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiBusy, setAiBusy] = useState(null); // 'email' | 'event' | 'ask'
+  const [aiMsg, setAiMsg] = useState(null);   // {ok, text}
+
+  const runAI = async (kind, prompt) => {
+    setAiBusy(kind); setAiMsg(null);
+    try {
+      const text = await askClaude(prompt);
+      setAiMsg({ ok: true, text });
+      onLog(record.id, kind === "email" ? "Gmail draft created via assistant" : kind === "event" ? "Calendar event created via assistant" : `Assistant: ${text.slice(0, 120)}`);
+    } catch (e) {
+      setAiMsg({ ok: false, text: `Couldn't reach Google Workspace: ${e.message}. Check that Gmail and Calendar are connected in Claude settings, then try again.` });
+    }
+    setAiBusy(null);
+  };
+
+  const ctx = recordContext(type, record, fields, data);
+  const draftEmail = () => runAI("email",
+    `You are the assistant inside a business-aviation CRM. Using the Gmail tool, create a DRAFT email (do not send) to ${record.email || "the contact"} about this record:\n\n${ctx}\n\nWrite a concise, professional broker email appropriate for the current pipeline stage (e.g. next steps, documents needed, or scheduling). Then reply to me with one short sentence confirming the draft and its subject line.`);
+  const scheduleEvent = () => runAI("event",
+    `You are the assistant inside a business-aviation CRM. Using the Google Calendar tool, create a 1-hour event for the logical next step for this record (e.g. pre-buy inspection kickoff call, aircraft viewing, charter departure prep). Pick a sensible weekday morning within the next 7 days unless the record specifies a date.\n\n${ctx}\n\nInvite ${record.email || "no one"} if an email is available. Then reply with one short sentence confirming the event title and time.`);
+  const freeAsk = () => {
+    if (!aiPrompt.trim()) return;
+    runAI("ask", `You are the assistant inside a business-aviation CRM with Gmail and Google Calendar tools available. Record context:\n\n${ctx}\n\nUser request: ${aiPrompt}`);
+    setAiPrompt("");
+  };
+
+  const acts = activity[record.id] || [];
+
+  return (
+    <SidePanel onClose={onClose} z={50} width={520}>
+      <div style={{ fontFamily: FONT, minHeight: "100%" }}>
+        {/* header */}
+        <div style={{ position: "sticky", top: 0, background: C.panel, borderBottom: `1px solid ${C.line}`, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, zIndex: 2 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title(record)}</div>
+            <div style={{ marginTop: 3 }}><Placard text={p.placard(record)} /></div>
+          </div>
+          <Btn small onClick={onClose}>Close</Btn>
+        </div>
+
+        <div style={{ padding: 16 }}>
+          {/* stage selector */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 6 }}>Stage</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+            {p.stages.map((s) => {
+              const on = record.stage === s;
+              const final = s === p.stages[p.stages.length - 1];
+              return (
+                <button key={s} onClick={() => { onUpdate({ ...record, stage: s }); onLog(record.id, `Moved to ${s}`); }} style={{
+                  fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 10px", borderRadius: 6, cursor: "pointer",
+                  border: `1px solid ${on ? "transparent" : C.line}`,
+                  background: on ? (final ? C.green : C.amber) : "#fff",
+                  color: on ? "#fff" : C.ink,
+                }}>{s}</button>
+              );
+            })}
+          </div>
+
+          {/* fields */}
+          <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 14, marginBottom: 16 }}>
+            {!editing ? (
+              <>
+                {fields.map((f) => record[f.k] ? (
+                  <div key={f.k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", borderBottom: `1px solid #F0F2F5` }}>
+                    <span style={{ fontSize: 12, color: C.slate }}>{f.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, fontFamily: f.mono ? MONO : FONT, textAlign: "right" }}>{record[f.k]}</span>
+                  </div>
+                ) : null)}
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <Btn small onClick={() => { setEdit({ ...record }); setEditing(true); }}>Edit details</Btn>
+                  <ConfirmBtn confirmLabel="Tap again to delete" onConfirm={() => onDelete(record.id)}>Delete</ConfirmBtn>
+                </div>
+              </>
+            ) : (
+              <>
+                {fields.map((f) => <Field key={f.k} def={f} value={edit[f.k]} all={edit} onChange={(k, v) => setEdit((e) => ({ ...e, [k]: v, ...(k === "make" ? { model: "" } : {}) }))} />)}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Btn small tone="primary" onClick={() => { onUpdate(edit); setEditing(false); onLog(record.id, "Details updated"); }}>Save changes</Btn>
+                  <Btn small onClick={() => setEditing(false)}>Cancel</Btn>
+                </div>
+              </>
+            )}
+          </div>
+
+
+          {/* related records */}
+          <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 14, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10 }}>
+              {type === "aircraft" ? "Deals & trips on this airframe" : "Linked aircraft"}
+            </div>
+            {(() => {
+              const links = linksFor(data, type === "aircraft" ? "aircraft" : type, record.id);
+              const rows = links.map((l) => {
+                if (type === "aircraft") {
+                  const rec = (data[l.refType] || []).find((x) => x.id === l.refId);
+                  if (!rec) return null;
+                  return (
+                    <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: `1px solid #F0F2F5` }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{PIPELINES[l.refType].title(rec)}</div>
+                        <div style={{ fontSize: 11, color: C.slate }}>{PIPELINES[l.refType].label} · {rec.stage}</div>
+                      </div>
+                      <Btn small onClick={() => onLinkToggle(record.id, l.refType, l.refId)} style={{ padding: "5px 9px" }}>Unlink</Btn>
+                    </div>
+                  );
+                }
+                const ac = data.aircraft.find((a) => a.id === l.aircraftId);
+                if (!ac) return null;
+                return (
+                  <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: `1px solid #F0F2F5` }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{PIPELINES.aircraft.title(ac)} <Placard text={ac.reg} /></div>
+                      <div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>{ac.offMarket ? "Off market" : ac.stage}{ac.ask ? ` · ${ac.ask}` : ""}</div>
+                    </div>
+                    <Btn small onClick={() => onLinkToggle(ac.id, type, record.id)} style={{ padding: "5px 9px" }}>Unlink</Btn>
+                  </div>
+                );
+              }).filter(Boolean);
+              return rows.length ? rows : <div style={{ fontSize: 12, color: C.slate }}>Nothing linked yet.</div>;
+            })()}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+              {type === "aircraft" ? (
+                <>
+                  <Btn small onClick={() => setPicker("deals")}>+ Link acquisition deal</Btn>
+                  <Btn small onClick={() => setPicker("charter")}>+ Link charter trip</Btn>
+                </>
+              ) : (
+                <Btn small onClick={() => setPicker("aircraft")}>+ Link aircraft</Btn>
+              )}
+            </div>
+          </div>
+
+          {/* sale record — airframes keep their transaction history */}
+          {type === "aircraft" && (record.stage === "Sold" || (record.sales && record.sales.length > 0)) && (
+            <div style={{ background: C.panel, border: `1px solid ${C.green}`, borderRadius: 10, padding: 14, marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10 }}>Sale record</div>
+              {(record.sales || []).map((sl, i) => (
+                <div key={i} style={{ fontSize: 13, color: C.ink, padding: "5px 0", borderBottom: `1px solid #F0F2F5` }}>
+                  <span style={{ fontFamily: MONO, fontWeight: 700 }}>{sl.price || "Undisclosed"}</span> · {sl.date}{sl.buyer ? ` · ${sl.buyer}` : ""}
+                </div>
+              ))}
+              {record.stage === "Sold" && !record.offMarket && (
+                !sale ? (
+                  <div style={{ marginTop: 10 }}>
+                    <Btn small tone="primary" onClick={() => setSale({ date: new Date().toISOString().slice(0, 10), price: record.ask || "", buyer: "", dealId: "" })}>
+                      Record sale &amp; move to registry
+                    </Btn>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 10 }}>
+                    <Field def={{ k: "date", label: "Closing date", ph: "2026-06-11" }} value={sale.date} onChange={(k, v) => setSale((x) => ({ ...x, date: v }))} />
+                    <Field def={{ k: "price", label: "Sale price", ph: "$16,100,000" }} value={sale.price} onChange={(k, v) => setSale((x) => ({ ...x, price: v }))} />
+                    <Field def={{ k: "buyer", label: "Buyer", ph: "Osei Capital" }} value={sale.buyer} onChange={(k, v) => setSale((x) => ({ ...x, buyer: v }))} />
+                    {linksFor(data, "aircraft", record.id).some((l) => l.refType === "deals") && (
+                      <label style={{ display: "block", marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 4 }}>Closed via deal</div>
+                        <select value={sale.dealId} onChange={(e) => setSale((x) => ({ ...x, dealId: e.target.value }))}
+                          style={{ width: "100%", padding: "10px 12px", border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14, fontFamily: FONT, background: "#fff" }}>
+                          <option value="">— none —</option>
+                          {linksFor(data, "aircraft", record.id).filter((l) => l.refType === "deals").map((l) => {
+                            const d = data.deals.find((x) => x.id === l.refId);
+                            return d ? <option key={d.id} value={d.id}>{d.client}{d.company ? ` (${d.company})` : ""}</option> : null;
+                          })}
+                        </select>
+                      </label>
+                    )}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Btn small tone="primary" onClick={() => { onSale(record, sale); setSale(null); }}>Save sale</Btn>
+                      <Btn small onClick={() => setSale(null)}>Cancel</Btn>
+                    </div>
+                  </div>
+                )
+              )}
+              {record.offMarket && <div style={{ fontSize: 12, color: C.slate, marginTop: 8 }}>Off market — find this airframe in the Registry view, where you can re-list it.</div>}
+            </div>
+          )}
+
+          {/* Google Workspace assistant */}
+          <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 14, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10 }}>Google Workspace</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+              <Btn small tone="amber" disabled={!!aiBusy} onClick={draftEmail}>{aiBusy === "email" ? "Drafting…" : "Draft email in Gmail"}</Btn>
+              <Btn small tone="amber" disabled={!!aiBusy} onClick={scheduleEvent}>{aiBusy === "event" ? "Scheduling…" : "Add to Calendar"}</Btn>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Ask anything — e.g. draft a pre-buy checklist email"
+                style={{ flex: 1, padding: "9px 11px", border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, fontFamily: FONT, outline: "none" }} />
+              <Btn small disabled={!!aiBusy} onClick={freeAsk}>{aiBusy === "ask" ? "…" : "Run"}</Btn>
+            </div>
+            {aiMsg && (
+              <div style={{ marginTop: 10, padding: 10, borderRadius: 6, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap",
+                background: aiMsg.ok ? C.greenSoft : "#FBEAE5", color: aiMsg.ok ? C.green : C.red }}>
+                {aiMsg.text}
+              </div>
+            )}
+          </div>
+
+          {/* activity */}
+          <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 14, marginBottom: 24 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10 }}>Activity</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Log a note"
+                style={{ flex: 1, padding: "9px 11px", border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, fontFamily: FONT, outline: "none" }} />
+              <Btn small onClick={() => { if (note.trim()) { onLog(record.id, note.trim()); setNote(""); } }}>Add</Btn>
+            </div>
+            {acts.length === 0 ? (
+              <div style={{ fontSize: 12, color: C.slate }}>Nothing logged yet — stage moves and notes will appear here.</div>
+            ) : acts.map((a, i) => (
+              <div key={i} style={{ padding: "7px 0", borderBottom: `1px solid #F0F2F5`, fontSize: 13, color: C.ink }}>
+                <span style={{ fontFamily: MONO, fontSize: 11, color: C.slate, marginRight: 8 }}>{a.ts}</span>{a.text}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {picker && (
+          <LinkPicker
+            title={picker === "aircraft" ? "Link aircraft" : picker === "deals" ? "Link acquisition deal" : "Link charter trip"}
+            items={picker === "aircraft" ? data.aircraft : data[picker]}
+            render={(r) => picker === "aircraft" ? `${PIPELINES.aircraft.title(r)} — ${r.reg}` : `${PIPELINES[picker].title(r)} · ${r.stage}`}
+            linkedIds={new Set(linksFor(data, type === "aircraft" ? "aircraft" : type, record.id).map((l) => type === "aircraft" ? l.refId : l.aircraftId))}
+            onToggle={(id) => type === "aircraft" ? onLinkToggle(record.id, picker, id) : onLinkToggle(id, type, record.id)}
+            onClose={() => setPicker(null)}
+          />
+        )}
+      </div>
+    </SidePanel>
+  );
+}
+
+
+/* ── list view ── */
+function EditableCell({ r, f, onCommit, onOpenRecord, primary }) {
+  const [editing, setEditing] = useState(false);
+  const [v, setV] = useState("");
+  let options = null;
+  if (f.select === "make") options = Object.keys(AIRCRAFT_CATALOG);
+  if (f.select === "model") options = AIRCRAFT_CATALOG[r.make] || null;
+  const commit = (val) => { setEditing(false); if ((val || "") !== (r[f.k] || "")) onCommit(r, f.k, val); };
+
+  if (primary) {
+    return (
+      <td style={tdStyle()}>
+        <button onClick={onOpenRecord} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: f.mono ? MONO : FONT, fontSize: 13, fontWeight: 700, color: C.ink, borderBottom: `2px solid ${C.amber}` }}>
+          {r[f.k] || "—"}
+        </button>
+      </td>
+    );
+  }
+  if (editing) {
+    return (
+      <td style={{ ...tdStyle(), padding: "4px 6px" }}>
+        {options ? (
+          <select autoFocus value={v} onChange={(e) => commit(e.target.value)} onBlur={() => setEditing(false)}
+            style={{ width: "100%", minWidth: 110, padding: "5px 6px", border: `1px solid ${C.amber}`, borderRadius: 5, fontSize: 12, fontFamily: FONT, background: "#fff" }}>
+            <option value="">—</option>
+            {r[f.k] && !options.includes(r[f.k]) && <option value={r[f.k]}>{r[f.k]}</option>}
+            {options.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        ) : (
+          <input autoFocus value={v} onChange={(e) => setV(e.target.value)}
+            onBlur={() => commit(v)}
+            onKeyDown={(e) => { if (e.key === "Enter") commit(v); if (e.key === "Escape") setEditing(false); }}
+            style={{ width: "100%", minWidth: 90, boxSizing: "border-box", padding: "5px 7px", border: `1px solid ${C.amber}`, borderRadius: 5, fontSize: 12, fontFamily: f.mono ? MONO : FONT, outline: "none" }} />
+        )}
+      </td>
+    );
+  }
+  return (
+    <td onClick={() => { setV(r[f.k] || ""); setEditing(true); }}
+      style={{ ...tdStyle(), fontFamily: f.mono ? MONO : FONT, cursor: "text" }}>
+      {r[f.k] || <span style={{ color: "#B6C0CA" }}>—</span>}
+    </td>
+  );
+}
+
+function ListView({ type, records, data, onOpen, onCellEdit, onStage }) {
+  const p = PIPELINES[type];
+  const hidden = new Set(data.prefs.columns[type].hidden);
+  const cols = orderedFields(type, data).filter((f) => !hidden.has(f.k));
+  const primaryKey = (PIPELINES[type].fields.find((f) => f.req) || cols[0] || {}).k;
+  const lastStage = p.stages[p.stages.length - 1];
+  return (
+    <div style={{ padding: "12px 14px 24px" }}>
+      <div style={{ fontSize: 11, color: C.slate, marginBottom: 8 }}>Tap any cell to edit in place · tap the underlined name to open the record</div>
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10 }}>
+        <table style={{ borderCollapse: "collapse", width: "100%", fontFamily: FONT }}>
+          <thead>
+            <tr>
+              <th style={thStyle()}>Stage</th>
+              {cols.map((f) => <th key={f.k} style={thStyle()}>{f.label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {records.map((r) => (
+              <tr key={r.id} style={{ borderTop: `1px solid #F0F2F5` }}>
+                <td style={{ ...tdStyle(), padding: "6px 8px" }}>
+                  <select value={r.stage} onChange={(e) => onStage(r, e.target.value)} style={{
+                    fontSize: 11, fontWeight: 700, padding: "4px 6px", borderRadius: 4, border: "none", cursor: "pointer", fontFamily: FONT,
+                    background: r.stage === lastStage ? C.greenSoft : C.navySoft,
+                    color: r.stage === lastStage ? C.green : C.ink,
+                  }}>
+                    {p.stages.map((st) => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                </td>
+                {cols.map((f) => (
+                  <EditableCell key={f.k} r={r} f={f} primary={f.k === primaryKey}
+                    onCommit={onCellEdit} onOpenRecord={() => onOpen(type, r.id)} />
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {records.length === 0 && (
+          <div style={{ padding: 18, fontSize: 13, color: C.slate, textAlign: "center" }}>No {p.unitName}s yet — add one with the + button.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+function thStyle() {
+  return { textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: C.slate,
+    letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap", borderBottom: `1px solid ${C.line}`, background: "#F7F9FA" };
+}
+function tdStyle() {
+  return { padding: "10px 12px", fontSize: 13, color: C.ink, whiteSpace: "nowrap", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" };
+}
+
+/* ── fleet registry — every airframe ever, by serial ── */
+function Registry({ data, onOpen, onRelist }) {
+  const sorted = [...data.aircraft].sort((a, b) => (a.offMarket === b.offMarket ? 0 : a.offMarket ? 1 : -1));
+  return (
+    <div style={{ padding: "12px 14px 24px" }}>
+      <div style={{ fontSize: 12, color: C.slate, marginBottom: 10 }}>
+        Every airframe stays on file by serial number — sold aircraft become comps and re-trade leads, never deleted.
+      </div>
+      {sorted.map((r) => {
+        const lastSale = r.sales && r.sales.length ? r.sales[0] : null;
+        return (
+          <div key={r.id} style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: 12, marginBottom: 8, fontFamily: FONT, opacity: r.offMarket ? 0.92 : 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+              <button onClick={() => onOpen("aircraft", r.id)} style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", fontFamily: FONT }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{PIPELINES.aircraft.title(r)}</div>
+                <div style={{ fontFamily: MONO, fontSize: 11, color: C.slate, marginTop: 2 }}>
+                  {r.reg}{r.serial ? ` · S/N ${r.serial}` : ""}
+                </div>
+              </button>
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
+                padding: "3px 8px", borderRadius: 4,
+                background: r.offMarket ? "#EAEDF0" : r.stage === "Sold" ? C.greenSoft : C.amberSoft,
+                color: r.offMarket ? C.slate : r.stage === "Sold" ? C.green : C.amber,
+              }}>{r.offMarket ? "Off market" : r.stage}</span>
+            </div>
+            {lastSale && (
+              <div style={{ fontSize: 12, color: C.slate, marginTop: 6 }}>
+                Last sale: <span style={{ fontFamily: MONO, fontWeight: 700, color: C.ink }}>{lastSale.price || "undisclosed"}</span> · {lastSale.date}{lastSale.buyer ? ` · ${lastSale.buyer}` : ""}
+                {r.sales.length > 1 ? ` · ${r.sales.length} sales on file` : ""}
+              </div>
+            )}
+            {r.offMarket && (
+              <div style={{ marginTop: 8 }}>
+                <Btn small tone="amber" onClick={() => onRelist(r)}>Re-list — start new sales cycle</Btn>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {data.aircraft.length === 0 && (
+        <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 18, fontSize: 13, color: C.slate, textAlign: "center" }}>No airframes on file yet.</div>
+      )}
+    </div>
+  );
+}
+
+/* ── link picker ── */
+function LinkPicker({ title, items, render, linkedIds, onToggle, onClose }) {
+  const [q, setQ] = useState("");
+  const filtered = items.filter((r) => !q.trim() || JSON.stringify(r).toLowerCase().includes(q.toLowerCase()));
+  return (
+    <SidePanel onClose={onClose} z={70} width={400} bg={C.panel}>
+      <div style={{ padding: 16, fontFamily: FONT }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.ink }}>{title}</div>
+          <Btn small onClick={onClose}>Done</Btn>
+        </div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…"
+          style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, fontFamily: FONT, outline: "none", marginBottom: 10 }} />
+        {filtered.map((r) => {
+          const on = linkedIds.has(r.id);
+          return (
+            <button key={r.id} onClick={() => onToggle(r.id)} style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left",
+              padding: "10px 12px", marginBottom: 6, borderRadius: 8, cursor: "pointer", fontFamily: FONT,
+              border: `1px solid ${on ? C.amber : C.line}`, background: on ? C.amberSoft : "#fff",
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{render(r)}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: on ? C.amber : C.slate }}>{on ? "Linked ✓" : "Link"}</span>
+            </button>
+          );
+        })}
+        {filtered.length === 0 && <div style={{ fontSize: 12, color: C.slate, textAlign: "center", padding: 12 }}>Nothing matches.</div>}
+      </div>
+    </SidePanel>
+  );
+}
+
+/* ── column manager ── */
+function ColumnManager({ type, data, onClose, onToggle, onMove, onAddField, onRemoveField }) {
+  const cols = orderedFields(type, data);
+  const hidden = new Set(data.prefs.columns[type].hidden);
+  const [label, setLabel] = useState("");
+  return (
+    <SidePanel onClose={onClose} z={60} width={460} bg={C.panel}>
+      <div style={{ padding: 16, fontFamily: FONT }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.ink }}>Columns &amp; fields</div>
+          <Btn small onClick={onClose}>Done</Btn>
+        </div>
+        <div style={{ fontSize: 12, color: C.slate, marginBottom: 12 }}>
+          Reorder and show or hide columns in list view. Fields you add appear on cards' details and the new-record form too.
+        </div>
+        {cols.map((f, i) => {
+          const off = hidden.has(f.k);
+          return (
+            <div key={f.k} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: `1px solid #F0F2F5` }}>
+              <button onClick={() => onToggle(f.k)} aria-label={off ? `Show ${f.label}` : `Hide ${f.label}`} style={{
+                width: 38, height: 22, borderRadius: 11, border: "none", cursor: "pointer", position: "relative", flexShrink: 0,
+                background: off ? "#D4DAE1" : C.green,
+              }}>
+                <span style={{ position: "absolute", top: 3, left: off ? 4 : 20, width: 16, height: 16, borderRadius: 8, background: "#fff", transition: "left 0.15s" }} />
+              </button>
+              <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: off ? C.slate : C.ink }}>
+                {f.label}{f.custom && <span style={{ fontFamily: MONO, fontSize: 10, color: C.amber, marginLeft: 6 }}>CUSTOM</span>}
+              </span>
+              <Btn small disabled={i === 0} onClick={() => onMove(f.k, -1)} style={{ padding: "5px 9px" }} aria-label={`Move ${f.label} left`}>←</Btn>
+              <Btn small disabled={i === cols.length - 1} onClick={() => onMove(f.k, 1)} style={{ padding: "5px 9px" }} aria-label={`Move ${f.label} right`}>→</Btn>
+              {f.custom && (
+                <ConfirmBtn confirmLabel="Sure?" onConfirm={() => onRemoveField(f.k)} style={{ padding: "5px 9px" }}>✕</ConfirmBtn>
+              )}
+            </div>
+          );
+        })}
+        <div style={{ display: "flex", gap: 8, marginTop: 14, paddingBottom: 8 }}>
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="New field name — e.g. Engine program"
+            style={{ flex: 1, padding: "9px 11px", border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, fontFamily: FONT, outline: "none" }} />
+          <Btn small tone="primary" disabled={!label.trim()} onClick={() => { onAddField(label.trim()); setLabel(""); }}>Add field</Btn>
+        </div>
+      </div>
+    </SidePanel>
+  );
+}
+
+/* ── add modal ── */
+function AddModal({ type, fields, onClose, onCreate }) {
+  const isContact = type === "contacts";
+  const defs = isContact ? CONTACT_FIELDS : fields;
+  const [vals, setVals] = useState({});
+  const canSave = defs.filter((d) => d.req).every((d) => (vals[d.k] || "").trim());
+  return (
+    <SidePanel onClose={onClose} z={60} width={460} bg={C.panel}>
+      <div style={{ padding: 16, fontFamily: FONT }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 12 }}>
+          {isContact ? "New contact" : `New ${PIPELINES[type].unitName}`}
+        </div>
+        {defs.map((d) => <Field key={d.k} def={d} value={vals[d.k]} all={vals} onChange={(k, v) => setVals((s) => ({ ...s, [k]: v, ...(k === "make" ? { model: "" } : {}) }))} />)}
+        <div style={{ display: "flex", gap: 8, marginTop: 6, paddingBottom: 8 }}>
+          <Btn tone="primary" disabled={!canSave} onClick={() => onCreate(vals)}>Create</Btn>
+          <Btn onClick={onClose}>Cancel</Btn>
+        </div>
+      </div>
+    </SidePanel>
+  );
+}
+
+/* ── contacts ── */
+function Contacts({ contacts, onDelete }) {
+  return (
+    <div style={{ padding: "12px 14px 24px" }}>
+      {contacts.length === 0 && (
+        <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 18, fontSize: 13, color: C.slate, textAlign: "center" }}>
+          No contacts yet — add owners, buyers, and operators with the + button.
+        </div>
+      )}
+      {contacts.map((c) => (
+        <div key={c.id} style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: 12, marginBottom: 8, fontFamily: FONT }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{c.name}</div>
+              <div style={{ fontSize: 12, color: C.slate, marginTop: 2 }}>{[c.role, c.company].filter(Boolean).join(" · ")}</div>
+            </div>
+            <ConfirmBtn confirmLabel="Tap again" onConfirm={() => onDelete(c.id)}>Remove</ConfirmBtn>
+          </div>
+          {(c.email || c.phone) && (
+            <div style={{ fontFamily: MONO, fontSize: 12, color: C.ink, marginTop: 8 }}>
+              {[c.email, c.phone].filter(Boolean).join("  ·  ")}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── app ── */
+function Tailbook() {
+  const [data, setData] = useState(null);
+  const [tab, setTab] = useState("aircraft");
+  const [open, setOpen] = useState(null); // {type, id}
+  const [adding, setAdding] = useState(false);
+  const [managing, setManaging] = useState(false);
+  const saveTimer = useRef(null);
+  const latest = useRef(null);
+  function dataRef() { return latest.current; }
+
+  useEffect(() => {
+    (async () => {
+      const stored = await loadStore();
+      const initial = withPrefs(stored || SEED);
+      latest.current = initial;
+      setData(initial);
+      if (!stored) saveStore(SEED);
+    })();
+  }, []);
+
+  const commit = (next) => {
+    latest.current = next;
+    setData(next);
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => saveStore(next), 350);
+  };
+
+  if (!data) {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, color: C.slate, fontSize: 14 }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap');`}</style>
+        Loading Tailbook…
+      </div>
+    );
+  }
+
+  const tabs = [...Object.entries(PIPELINES).map(([k, v]) => [k, v.label]), ["contacts", "Contacts"]];
+  const openRecord = open && data[open.type] ? data[open.type].find((r) => r.id === open.id) : null;
+
+  const log = (id, text) => {
+    const d = dataRef();
+    const ts = new Date().toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    const acts = { ...d.activity, [id]: [{ ts, text }, ...(d.activity[id] || [])].slice(0, 50) };
+    commit({ ...d, activity: acts });
+  };
+  const update = (type) => (rec) => commit({ ...dataRef(), [type]: dataRef()[type].map((r) => (r.id === rec.id ? rec : r)) });
+  const remove = (type) => (id) => { commit({ ...dataRef(), [type]: dataRef()[type].filter((r) => r.id !== id) }); setOpen(null); };
+  const create = (type) => (vals) => {
+    const id = `r${Date.now().toString(36)}`;
+    const rec = type === "contacts" ? { id, ...vals } : { id, stage: PIPELINES[type].stages[0], ...vals };
+    commit({ ...dataRef(), [type]: [rec, ...dataRef()[type]] });
+    setAdding(false);
+  };
+
+  const setPrefs = (fn) => { const d = dataRef(); commit({ ...d, prefs: fn(d.prefs) }); };
+  const setView = (t, v) => setPrefs((p) => ({ ...p, view: { ...p.view, [t]: v } }));
+  const toggleCol = (k) => setPrefs((p) => {
+    const c = p.columns[tab];
+    const hidden = c.hidden.includes(k) ? c.hidden.filter((x) => x !== k) : [...c.hidden, k];
+    return { ...p, columns: { ...p.columns, [tab]: { ...c, hidden } } };
+  });
+  const moveCol = (k, dir) => setPrefs((p) => {
+    const keys = orderedFields(tab, dataRef()).map((f) => f.k);
+    const i = keys.indexOf(k), j = i + dir;
+    if (j < 0 || j >= keys.length) return p;
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+    return { ...p, columns: { ...p.columns, [tab]: { ...p.columns[tab], order: keys } } };
+  });
+  const addField = (label) => setPrefs((p) => {
+    const k = "cf_" + label.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 24) + "_" + Date.now().toString(36).slice(-3);
+    return { ...p, customFields: { ...p.customFields, [tab]: [...p.customFields[tab], { k, label, ph: "" }] } };
+  });
+  const removeField = (k) => setPrefs((p) => ({
+    ...p,
+    customFields: { ...p.customFields, [tab]: p.customFields[tab].filter((f) => f.k !== k) },
+    columns: { ...p.columns, [tab]: { ...p.columns[tab], hidden: p.columns[tab].hidden.filter((x) => x !== k) } },
+  }));
+
+  const linkToggle = (aircraftId, refType, refId) => {
+    const d = dataRef();
+    const existing = d.links.find((l) => l.aircraftId === aircraftId && l.refType === refType && l.refId === refId);
+    const ac = d.aircraft.find((a) => a.id === aircraftId);
+    const rec = (d[refType] || []).find((r) => r.id === refId);
+    const label = ac && rec ? `${ac.reg} ↔ ${PIPELINES[refType].title(rec)}` : "records";
+    if (existing) {
+      commit({ ...d, links: d.links.filter((l) => l !== existing) });
+      log(aircraftId, `Unlinked ${label}`);
+    } else {
+      commit({ ...d, links: [...d.links, { id: `l${Date.now().toString(36)}`, aircraftId, refType, refId }] });
+      log(aircraftId, `Linked ${label}`);
+      if (refId !== aircraftId) log(refId, `Linked ${label}`);
+    }
+  };
+  const recordSale = (aircraft, sale) => {
+    const d = dataRef();
+    const entry = { date: sale.date, price: sale.price, buyer: sale.buyer, dealId: sale.dealId || null };
+    const updated = { ...aircraft, sales: [entry, ...(aircraft.sales || [])], offMarket: true };
+    commit({ ...d, aircraft: d.aircraft.map((a) => (a.id === aircraft.id ? updated : a)) });
+    log(aircraft.id, `Sold ${sale.price ? "for " + sale.price : ""} on ${sale.date}${sale.buyer ? " to " + sale.buyer : ""} — moved to registry`);
+    if (sale.dealId) log(sale.dealId, `Closed on ${PIPELINES.aircraft.title(aircraft)} ${aircraft.reg} (${sale.price || "undisclosed"})`);
+    setOpen(null);
+  };
+  const setStage = (type) => (r, stage) => {
+    if (!stage || stage === r.stage) return;
+    update(type)({ ...r, stage });
+    log(r.id, `Moved to ${stage}`);
+  };
+  const cellEdit = (type) => (r, k, v) => {
+    update(type)({ ...r, [k]: v, ...(k === "make" ? { model: "" } : {}) });
+  };
+  const relist = (aircraft) => {
+    const d = dataRef();
+    const updated = { ...aircraft, offMarket: false, stage: PIPELINES.aircraft.stages[0] };
+    commit({ ...d, aircraft: d.aircraft.map((a) => (a.id === aircraft.id ? updated : a)) });
+    log(aircraft.id, "Re-listed — new sales cycle started");
+  };
+
+  const counts = Object.fromEntries(tabs.map(([k]) => [k, data[k] ? data[k].length : 0]));
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap');
+        * { -webkit-tap-highlight-color: transparent; }
+        button:focus-visible, input:focus-visible { outline: 2px solid ${C.amber}; outline-offset: 1px; }
+        @keyframes tbSlideIn { from { transform: translateX(36px); opacity: 0.4; } to { transform: none; opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+      `}</style>
+
+      {/* identity bar */}
+      <div style={{ background: C.ink, padding: "14px 16px 12px", fontFamily: FONT }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <span style={{ color: "#fff", fontSize: 19, fontWeight: 700, letterSpacing: "0.02em" }}>TAILBOOK</span>
+          <span style={{ color: "#8FA0B1", fontFamily: MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" }}>Business aviation CRM</span>
+        </div>
+      </div>
+
+      {/* tabs */}
+      <div style={{ display: "flex", gap: 6, padding: "10px 14px 0", overflowX: "auto", background: C.panel, borderBottom: `1px solid ${C.line}` }}>
+        {tabs.map(([k, label]) => {
+          const on = tab === k;
+          return (
+            <button key={k} onClick={() => setTab(k)} style={{
+              fontFamily: FONT, fontSize: 13, fontWeight: 700, padding: "9px 12px", cursor: "pointer",
+              background: "transparent", border: "none", color: on ? C.ink : C.slate,
+              borderBottom: `3px solid ${on ? C.amber : "transparent"}`, whiteSpace: "nowrap",
+            }}>
+              {label} <span style={{ fontFamily: MONO, fontSize: 11, color: C.slate }}>{counts[k]}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* view toolbar */}
+      {tab !== "contacts" && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px 0" }}>
+          <div style={{ display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 7, overflow: "hidden", background: C.panel }}>
+            {(tab === "aircraft" ? ["board", "list", "registry"] : ["board", "list"]).map((v) => {
+              const on = data.prefs.view[tab] === v;
+              return (
+                <button key={v} onClick={() => setView(tab, v)} style={{
+                  fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 14px", border: "none", cursor: "pointer",
+                  background: on ? C.ink : "transparent", color: on ? "#fff" : C.slate, textTransform: "capitalize",
+                }}>{v}</button>
+              );
+            })}
+          </div>
+          {data.prefs.view[tab] === "list" && <Btn small onClick={() => setManaging(true)}>Columns ⚙</Btn>}
+        </div>
+      )}
+
+      {/* body */}
+      {tab === "contacts"
+        ? <Contacts contacts={data.contacts} onDelete={remove("contacts")} />
+        : tab === "aircraft" && data.prefs.view.aircraft === "registry"
+          ? <Registry data={data} onOpen={(type, id) => setOpen({ type, id })} onRelist={relist} />
+          : data.prefs.view[tab] === "list"
+            ? <ListView type={tab} records={tab === "aircraft" ? data.aircraft.filter((r) => !r.offMarket) : data[tab]} data={data} onOpen={(type, id) => setOpen({ type, id })} onCellEdit={cellEdit(tab)} onStage={setStage(tab)} />
+            : <Board type={tab} records={tab === "aircraft" ? data.aircraft.filter((r) => !r.offMarket) : data[tab]} onOpen={(type, id) => setOpen({ type, id })} onStage={setStage(tab)} />}
+
+      {/* add */}
+      <button onClick={() => setAdding(true)} aria-label="Add record" style={{
+        position: "fixed", right: 18, bottom: 22, width: 54, height: 54, borderRadius: 27,
+        background: C.amber, color: "#fff", border: "none", fontSize: 28, fontFamily: FONT,
+        boxShadow: "0 4px 14px rgba(21,32,43,0.3)", cursor: "pointer", zIndex: 40, lineHeight: 0,
+      }}>+</button>
+
+      {adding && <AddModal type={tab} fields={tab === "contacts" ? null : getFields(tab, data)} onClose={() => setAdding(false)} onCreate={create(tab)} />}
+      {managing && tab !== "contacts" && (
+        <ColumnManager type={tab} data={data} onClose={() => setManaging(false)}
+          onToggle={toggleCol} onMove={moveCol} onAddField={addField} onRemoveField={removeField} />
+      )}
+      {openRecord && (
+        <Detail
+          type={open.type}
+          record={openRecord}
+          fields={getFields(open.type, data)}
+          data={data}
+          activity={data.activity}
+          onClose={() => setOpen(null)}
+          onUpdate={update(open.type)}
+          onDelete={remove(open.type)}
+          onLog={log}
+          onLinkToggle={linkToggle}
+          onSale={recordSale}
+        />
+      )}
+    </div>
+  );
+}
+
+
+window._authReady.then((session) => {
+  if (session) ReactDOM.createRoot(document.getElementById("root")).render(<Tailbook />);
+});
+
+</script>
+</body>
+</html>
