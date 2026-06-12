@@ -657,10 +657,15 @@ function Card({ type, r, stages, onOpen }) {
 function Board({ type, records, stages, onOpen, onStage }) {
   const p = PIPELINES[type];
   const [overStage, setOverStage] = useState(null);
+  const [expanded, setExpanded] = useState({});
+  const STACK_WINDOW = 30;
   return (
     <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "12px 14px 24px", WebkitOverflowScrolling: "touch" }}>
       {stages.map((stage) => {
         const items = records.filter((r) => r.stage === stage);
+        const isExpanded = !!expanded[stage];
+        const shown = isExpanded ? items : items.slice(0, STACK_WINDOW);
+        const hidden = items.length - shown.length;
         const final = stage === stages[stages.length - 1];
         const isOver = overStage === stage;
         return (
@@ -681,7 +686,21 @@ function Board({ type, records, stages, onOpen, onStage }) {
               <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: final ? C.green : C.ink }}>{stage}</span>
               <span style={{ fontFamily: MONO, fontSize: 12, color: C.slate }}>{items.length}</span>
             </div>
-            {items.map((r) => <Card key={r.id} type={type} r={r} stages={stages} onOpen={() => onOpen(type, r.id)} />)}
+            {shown.map((r) => <Card key={r.id} type={type} r={r} stages={stages} onOpen={() => onOpen(type, r.id)} />)}
+            {hidden > 0 && (
+              <button onClick={() => setExpanded((e) => ({ ...e, [stage]: true }))} style={{
+                fontFamily: FONT, fontSize: 12, fontWeight: 700, width: "100%", padding: "9px 10px",
+                background: "transparent", border: `1px dashed ${C.line}`, borderRadius: 8,
+                color: C.amber, cursor: "pointer", marginBottom: 8,
+              }}>Show all {items.length}</button>
+            )}
+            {isExpanded && items.length > STACK_WINDOW && (
+              <button onClick={() => setExpanded((e) => ({ ...e, [stage]: false }))} style={{
+                fontFamily: FONT, fontSize: 12, fontWeight: 700, width: "100%", padding: "9px 10px",
+                background: "transparent", border: `1px dashed ${C.line}`, borderRadius: 8,
+                color: C.slate, cursor: "pointer", marginBottom: 8,
+              }}>Show first {STACK_WINDOW}</button>
+            )}
             {items.length === 0 && (
               <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 14, fontSize: 12, color: C.slate, textAlign: "center" }}>
                 Drop {p.unitName}s here
@@ -1767,21 +1786,21 @@ function Tailbook() {
       </div>
 
       {/* view toolbar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 14px 0", flexWrap: "wrap" }}>
-        {tab !== "contacts" ? (
-          <div style={{ display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 7, overflow: "hidden", background: C.panel }}>
-            {(tab === "aircraft" ? ["board", "list", "registry"] : ["board", "list"]).map((v) => {
-              const on = data.prefs.view[tab] === v;
-              return (
-                <button key={v} onClick={() => setView(tab, v)} style={{
-                  fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 14px", border: "none", cursor: "pointer",
-                  background: on ? C.fill : "transparent", color: on ? "#fff" : C.slate, textTransform: "capitalize",
-                }}>{v}</button>
-              );
-            })}
-          </div>
-        ) : <div />}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, padding: "10px 14px 0", flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {tab !== "contacts" && (
+            <div style={{ display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 7, overflow: "hidden", background: C.panel, marginRight: 4 }}>
+              {(tab === "aircraft" ? ["board", "list", "registry"] : ["board", "list"]).map((v) => {
+                const on = data.prefs.view[tab] === v;
+                return (
+                  <button key={v} onClick={() => setView(tab, v)} style={{
+                    fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 14px", border: "none", cursor: "pointer",
+                    background: on ? C.fill : "transparent", color: on ? "#fff" : C.slate, textTransform: "capitalize",
+                  }}>{v}</button>
+                );
+              })}
+            </div>
+          )}
           {tab !== "contacts" && (
             <Btn small onClick={() => setFiltering(true)} style={activeFilterCount ? { borderColor: C.amber, color: C.amber, fontWeight: 700 } : null}>
               ⚲ Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}
