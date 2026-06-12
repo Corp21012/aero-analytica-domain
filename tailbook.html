@@ -180,10 +180,17 @@ const PIPELINES = {
       { k: "year", label: "Year", ph: "2014" },
       { k: "serial", label: "Serial no.", ph: "4301", mono: true },
       { k: "ttaf", label: "Total time (TTAF)", ph: "3,250 hrs" },
+      { k: "landings", label: "Landings", ph: "2,752" },
       { k: "ask", label: "Asking price", ph: "$16,500,000" },
-      { k: "base", label: "Home base", ph: "KTEB", mono: true },
-      { k: "owner", label: "Owner / rep", ph: "Marta Keller" },
-      { k: "email", label: "Owner email", ph: "marta@example.com" },
+      { k: "base", label: "Home base / location", ph: "KTEB", mono: true },
+      { k: "owner", label: "Owner / broker", ph: "Marta Keller" },
+      { k: "email", label: "Contact email", ph: "marta@example.com" },
+      { k: "phone", label: "Contact phone", ph: "+1 410 555 0123" },
+      { k: "avionics", label: "Avionics", ph: "Honeywell Primus EPIC EASy II" },
+      { k: "wifi", label: "WiFi", ph: "Gogo AVANCE L5" },
+      { k: "engines", label: "Engine program", ph: "P&W ESP Gold" },
+      { k: "paintYear", label: "Paint year", ph: "2019" },
+      { k: "interiorYear", label: "Interior year", ph: "2023" },
     ],
     title: (r) => r.make ? `${r.make} ${r.model || ""}`.trim() : (r.model || "Aircraft"),
     placard: (r) => r.reg,
@@ -305,7 +312,8 @@ function downloadText(name, text) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
-let DRAG = null; // record being dragged on the kanban
+let DRAG = null;    // record being dragged on the kanban
+let DRAGCOL = null; // column key being dragged on the list view
 
 const SEED = {
   aircraft: [
@@ -878,7 +886,7 @@ function EditableCell({ r, f, onCommit, onOpenRecord, primary }) {
   );
 }
 
-function ListView({ type, records, stages, data, onOpen, onCellEdit, onStage }) {
+function ListView({ type, records, stages, data, onOpen, onCellEdit, onStage, onColReorder }) {
   const p = PIPELINES[type];
   const hidden = new Set(data.prefs.columns[type].hidden);
   const cols = orderedFields(type, data).filter((f) => !hidden.has(f.k));
@@ -892,7 +900,15 @@ function ListView({ type, records, stages, data, onOpen, onCellEdit, onStage }) 
           <thead>
             <tr>
               <th style={thStyle()}>Stage</th>
-              {cols.map((f) => <th key={f.k} style={thStyle()}>{f.label}</th>)}
+              {cols.map((f) => (
+                <th key={f.k} draggable
+                  onDragStart={() => { DRAGCOL = f.k; }}
+                  onDragEnd={() => { DRAGCOL = null; }}
+                  onDragOver={(e) => { if (DRAGCOL && DRAGCOL !== f.k) e.preventDefault(); }}
+                  onDrop={(e) => { e.preventDefault(); if (DRAGCOL && DRAGCOL !== f.k) onColReorder(DRAGCOL, f.k); DRAGCOL = null; }}
+                  title="Drag to reorder column"
+                  style={{ ...thStyle(), cursor: "grab" }}>{f.label}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -1221,6 +1237,103 @@ function ScanImportModal({ state, onClose, onImport }) {
   );
 }
 
+function chipStyle() {
+  return { fontFamily: FONT, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 14,
+    border: `1px solid ${C.amber}`, background: C.amberSoft, color: C.amber, cursor: "pointer" };
+}
+
+function ActionsMenu({ tab, view, onScanner, onStages, onImport, onExport, onColumns }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  const items = [
+    tab === "aircraft" && { icon: "⇪", label: "Import from scanner", hint: "Brochure Extractor inbox", fn: onScanner },
+    tab !== "contacts" && { icon: "✎", label: "Edit stages", hint: "Rename, reorder, add", fn: onStages },
+    { icon: "⬆", label: "Import CSV", hint: "Spreadsheet → records", fn: onImport },
+    { icon: "⬇", label: "Export CSV", hint: "Records → spreadsheet", fn: onExport },
+    tab !== "contacts" && { icon: "▦", label: "Columns & fields", hint: "Show, hide, add custom", fn: onColumns },
+  ].filter(Boolean);
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button onClick={() => setOpen((o) => !o)} style={{
+        fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 7,
+        border: "none", cursor: "pointer", background: C.ink, color: "#fff", display: "flex", alignItems: "center", gap: 7,
+      }}>
+        Actions <span style={{ fontSize: 9, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s", color: C.amber }}>▼</span>
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 85, minWidth: 240,
+          background: C.ink, borderRadius: 10, padding: 6, boxShadow: "0 14px 34px rgba(21,32,43,0.4)",
+          border: "1px solid #2C3B4A",
+        }}>
+          {items.map((it) => (
+            <button key={it.label} onClick={() => { setOpen(false); it.fn(); }} style={{
+              display: "flex", alignItems: "center", gap: 11, width: "100%", padding: "10px 12px",
+              border: "none", borderRadius: 7, background: "transparent", cursor: "pointer",
+              fontFamily: FONT, textAlign: "left", color: "#EDF0F3",
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#1F2D3B"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+              <span style={{ color: C.amber, fontSize: 14, width: 18, textAlign: "center" }}>{it.icon}</span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 700 }}>{it.label}</span>
+                <span style={{ display: "block", fontSize: 10, color: "#8FA0B1", fontFamily: MONO, letterSpacing: "0.05em" }}>{it.hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilterPanel({ type, stages, fields, value, onChange, onClose }) {
+  const p = PIPELINES[type];
+  const sel = value.stages || [];
+  const texts = value.texts || {};
+  const toggleStage = (s) => onChange({ ...value, stages: sel.includes(s) ? sel.filter((x) => x !== s) : [...sel, s] });
+  const setText = (k, q) => onChange({ ...value, texts: { ...texts, [k]: q } });
+  const inputStyle = { width: "100%", boxSizing: "border-box", fontFamily: FONT, fontSize: 13, padding: "8px 10px", border: `1px solid ${C.line}`, borderRadius: 6, background: "#fff", color: C.ink };
+  return (
+    <SidePanel onClose={onClose} z={70} width={400}>
+      <div style={{ fontFamily: FONT, padding: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.ink }}>Filters — {p.label}</div>
+          <Btn small onClick={onClose}>Done</Btn>
+        </div>
+        <div style={{ fontSize: 12, color: C.slate, marginBottom: 14 }}>Filters apply to the board and list views and stay on until cleared.</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 6 }}>Stage</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+          {stages.map((s) => {
+            const on = sel.includes(s);
+            return (
+              <button key={s} onClick={() => toggleStage(s)} style={{
+                fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 10px", borderRadius: 6, cursor: "pointer",
+                border: `1px solid ${on ? "transparent" : C.line}`, background: on ? C.amber : "#fff", color: on ? "#fff" : C.ink,
+              }}>{s}</button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 6 }}>Field contains</div>
+        {fields.map((f) => (
+          <div key={f.k} style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: C.slate, marginBottom: 4 }}>{f.label}</div>
+            <input value={texts[f.k] || ""} onChange={(e) => setText(f.k, e.target.value)} placeholder={f.ph || ""} style={inputStyle} />
+          </div>
+        ))}
+      </div>
+    </SidePanel>
+  );
+}
+
 function Tailbook() {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("aircraft");
@@ -1231,6 +1344,8 @@ function Tailbook() {
   const [editingStages, setEditingStages] = useState(false);
   const [scanImport, setScanImport] = useState(null); // null | 'loading' | {rows}
   const [toast, setToast] = useState(null);
+  const [filtering, setFiltering] = useState(false);
+  const [filters, setFilters] = useState({}); // per tab: { stages: [], texts: {k: q} }
   const fileRef = useRef(null);
   const toastTimer = useRef(null);
   const showToast = (text, ok = true) => {
@@ -1292,6 +1407,13 @@ function Tailbook() {
     const c = p.columns[tab];
     const hidden = c.hidden.includes(k) ? c.hidden.filter((x) => x !== k) : [...c.hidden, k];
     return { ...p, columns: { ...p.columns, [tab]: { ...c, hidden } } };
+  });
+  const reorderCols = (fromK, toK) => setPrefs((p) => {
+    const keys = orderedFields(tab, dataRef()).map((f) => f.k);
+    const from = keys.indexOf(fromK), to = keys.indexOf(toK);
+    if (from === -1 || to === -1) return p;
+    keys.splice(to, 0, keys.splice(from, 1)[0]);
+    return { ...p, columns: { ...p.columns, [tab]: { ...p.columns[tab], order: keys } } };
   });
   const moveCol = (k, dir) => setPrefs((p) => {
     const keys = orderedFields(tab, dataRef()).map((f) => f.k);
@@ -1403,7 +1525,13 @@ function Tailbook() {
       const rec = {
         id: `r${Date.now().toString(36)}${i}`, stage: stg[0],
         reg: clean(b.tail_number), make: clean(b.make), model: clean(b.model),
-        year: clean(b.year), serial: clean(b.serial_number), ttaf: clean(b.aftt),
+        year: clean(b.year), serial: clean(b.serial_number),
+        ttaf: clean(b.aftt), landings: clean(b.landings),
+        ask: clean(b.asking_price), base: clean(b.location),
+        owner: [clean(b.broker_name), clean(b.broker_company)].filter(Boolean).join(" — "),
+        email: clean(b.broker_email), phone: clean(b.broker_phone),
+        avionics: clean(b.avionics), wifi: clean(b.wifi),
+        paintYear: clean(b.paint_year), interiorYear: clean(b.interior_year),
         pdfPath: row.pdf_path || "", sourceFile: row.source_file || "",
       };
       Object.keys(rec).forEach((k) => { if (rec[k] === "") delete rec[k]; });
@@ -1418,6 +1546,20 @@ function Tailbook() {
     showToast(`Imported ${recs.length} aircraft from the scanner`);
     try { await window._sb.from("brochure_imports").update({ imported: true }).in("id", rows.map((r) => r.id)); }
     catch (e) { console.error("Couldn't mark scanner rows imported", e); }
+  };
+
+  const curFilters = filters[tab] || { stages: [], texts: {} };
+  const setTabFilters = (f) => setFilters({ ...filters, [tab]: f });
+  const activeFilterCount = tab === "contacts" ? 0
+    : (curFilters.stages || []).length + Object.values(curFilters.texts || {}).filter((v) => v && v.trim()).length;
+  const applyFilters = (recs) => {
+    if (tab === "contacts" || !activeFilterCount) return recs;
+    const stagesSel = curFilters.stages || [];
+    const texts = Object.entries(curFilters.texts || {}).filter(([, v]) => v && v.trim());
+    return recs.filter((r) => {
+      if (stagesSel.length && !stagesSel.includes(r.stage)) return false;
+      return texts.every(([k, q]) => String(r[k] || "").toLowerCase().includes(q.trim().toLowerCase()));
+    });
   };
 
   const searchResults = (() => {
@@ -1482,9 +1624,9 @@ function Tailbook() {
             placeholder="Search aircraft, deals, charter, contacts…"
             aria-label="Global search"
             style={{
-              width: "100%", boxSizing: "border-box", fontFamily: FONT, fontSize: 13,
-              padding: "8px 12px", borderRadius: 7, border: "1px solid #2C3B4A",
-              background: "#1F2D3B", color: "#EDF0F3", outline: "none",
+              width: "100%", boxSizing: "border-box", fontFamily: MONO, fontSize: 12,
+              letterSpacing: "0.04em", padding: "8px 12px", borderRadius: 7,
+              border: "1px solid #2C3B4A", background: "#1F2D3B", color: C.amber, outline: "none",
             }}
           />
           {query.trim() && (
@@ -1540,14 +1682,35 @@ function Tailbook() {
             })}
           </div>
         ) : <div />}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {tab === "aircraft" && <Btn small onClick={openScanImport}>⇪ From scanner</Btn>}
-          {tab !== "contacts" && <Btn small onClick={() => setEditingStages(true)}>Stages ✎</Btn>}
-          <Btn small onClick={() => fileRef.current && fileRef.current.click()}>⬆ Import CSV</Btn>
-          <Btn small onClick={exportCSV}>⬇ Export CSV</Btn>
-          {tab !== "contacts" && data.prefs.view[tab] === "list" && <Btn small onClick={() => setManaging(true)}>Columns ⚙</Btn>}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {tab !== "contacts" && (
+            <Btn small onClick={() => setFiltering(true)} style={activeFilterCount ? { borderColor: C.amber, color: C.amber, fontWeight: 700 } : null}>
+              ⚲ Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}
+            </Btn>
+          )}
+          <ActionsMenu tab={tab} view={data.prefs.view[tab]}
+            onScanner={openScanImport} onStages={() => setEditingStages(true)}
+            onImport={() => fileRef.current && fileRef.current.click()} onExport={exportCSV}
+            onColumns={() => setManaging(true)} />
         </div>
       </div>
+      {activeFilterCount > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 14px 0", fontFamily: FONT }}>
+          {(curFilters.stages || []).map((s) => (
+            <button key={"st" + s} onClick={() => setTabFilters({ ...curFilters, stages: curFilters.stages.filter((x) => x !== s) })}
+              style={chipStyle()}>{s} ✕</button>
+          ))}
+          {Object.entries(curFilters.texts || {}).filter(([, v]) => v && v.trim()).map(([k, v]) => {
+            const f = getFields(tab, data).find((fd) => fd.k === k);
+            return (
+              <button key={"tx" + k} onClick={() => setTabFilters({ ...curFilters, texts: { ...curFilters.texts, [k]: "" } })}
+                style={chipStyle()}>{(f ? f.label : k)}: “{v}” ✕</button>
+            );
+          })}
+          <button onClick={() => setTabFilters({ stages: [], texts: {} })}
+            style={{ ...chipStyle(), background: "transparent", border: `1px solid ${C.line}`, color: C.slate }}>Clear all</button>
+        </div>
+      )}
       <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: "none" }}
         onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) importCSV(f); e.target.value = ""; }} />
 
@@ -1557,8 +1720,8 @@ function Tailbook() {
         : tab === "aircraft" && data.prefs.view.aircraft === "registry"
           ? <Registry data={data} onOpen={(type, id) => setOpen({ type, id })} onRelist={relist} />
           : data.prefs.view[tab] === "list"
-            ? <ListView type={tab} records={tab === "aircraft" ? data.aircraft.filter((r) => !r.offMarket) : data[tab]} stages={getStages(tab, data)} data={data} onOpen={(type, id) => setOpen({ type, id })} onCellEdit={cellEdit(tab)} onStage={setStage(tab)} />
-            : <Board type={tab} records={tab === "aircraft" ? data.aircraft.filter((r) => !r.offMarket) : data[tab]} stages={getStages(tab, data)} onOpen={(type, id) => setOpen({ type, id })} onStage={setStage(tab)} />}
+            ? <ListView type={tab} records={applyFilters(tab === "aircraft" ? data.aircraft.filter((r) => !r.offMarket) : data[tab])} stages={getStages(tab, data)} data={data} onOpen={(type, id) => setOpen({ type, id })} onCellEdit={cellEdit(tab)} onStage={setStage(tab)} onColReorder={reorderCols} />
+            : <Board type={tab} records={applyFilters(tab === "aircraft" ? data.aircraft.filter((r) => !r.offMarket) : data[tab])} stages={getStages(tab, data)} onOpen={(type, id) => setOpen({ type, id })} onStage={setStage(tab)} />}
 
       {/* add */}
       <button onClick={() => setAdding(true)} aria-label="Add record" style={{
@@ -1577,6 +1740,10 @@ function Tailbook() {
       )}
       {scanImport && (
         <ScanImportModal state={scanImport} onClose={() => setScanImport(null)} onImport={importFromScanner} />
+      )}
+      {filtering && tab !== "contacts" && (
+        <FilterPanel type={tab} stages={getStages(tab, data)} fields={getFields(tab, data)}
+          value={curFilters} onChange={setTabFilters} onClose={() => setFiltering(false)} />
       )}
       {toast && (
         <div role="status" style={{

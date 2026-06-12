@@ -217,6 +217,12 @@ const SCHEMA = [
   { key:'wifi',              label:'WiFi',                section:'Equipment' },
   { key:'paint_year',        label:'Paint Year',          section:'Interior & Exterior' },
   { key:'interior_year',     label:'Interior Year',       section:'Interior & Exterior' },
+  { key:'asking_price',      label:'Asking Price',        section:'Listing' },
+  { key:'location',          label:'Location / Base',     section:'Listing' },
+  { key:'broker_company',    label:'Broker Company',      section:'Listing' },
+  { key:'broker_name',       label:'Broker Contact',      section:'Listing' },
+  { key:'broker_email',      label:'Broker Email',        section:'Listing' },
+  { key:'broker_phone',      label:'Broker Phone',        section:'Listing' },
   { key:'source_file',       label:'Source File',         section:'Meta' },
 ];
 
@@ -243,6 +249,12 @@ Keys to extract:
 - wifi: WiFi system — identify type: Gogo (specify AVANCE L5/L3), Ka-Band, Ku-Band, Starlink, Swift Broadband, BBML, or describe what is listed. If multiple, list all.
 - paint_year: Year of most recent exterior paint
 - interior_year: Year of most recent interior refurbishment or completion
+- asking_price: Asking price as listed (e.g. $16,500,000 — use "Make Offer" if listed that way)
+- location: Aircraft location or home base, airport code if given (e.g. KTEB, Jakarta Indonesia)
+- broker_company: Brokerage or listing company (e.g. Avpro, Jetcraft, JetHQ, QS Partners)
+- broker_name: Name of the listed broker or sales contact person
+- broker_email: Email of the listed broker contact
+- broker_phone: Phone number of the listed broker contact
 
 Return ONLY the JSON object, no markdown, no explanation, no extra text.`;
 

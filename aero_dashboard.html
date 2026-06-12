@@ -141,11 +141,8 @@ async function signOut() {
 </nav>
 
 <div class="sbbar">
-  <label>Supabase URL</label>
-  <input class="url" id="sbUrl" placeholder="https://xxxx.supabase.co" value="https://rabjbhtoufrrfznpztjt.supabase.co">
-  <label>Anon Key</label>
-  <input class="key" id="sbKey" placeholder="sb_publishable_..." type="password">
-  <button class="btn btn-primary" onclick="loadData()">↻ Load Data</button>
+  <button class="btn btn-primary" onclick="loadData()">&#8635; Refresh Data</button>
+  <span style="font-size:11px;color:#666;letter-spacing:.3px">Loads automatically using your signed-in account.</span>
 </div>
 <div id="err-msg" class="err"></div>
 <div id="loading" class="loading" style="display:none">Loading from Supabase…</div>
@@ -212,26 +209,20 @@ let retailChart = null, wholesaleChart = null;
 
 // ── Load from Supabase ────────────────────────────────────────────────────────
 async function loadData() {
-  const url = document.getElementById('sbUrl').value.trim();
-  const key = document.getElementById('sbKey').value.trim();
   const err = document.getElementById('err-msg');
   const loading = document.getElementById('loading');
 
-  if (!url || !key) { err.textContent = 'Enter Supabase URL and anon key.'; return; }
   err.textContent = '';
   loading.style.display = 'block';
   document.getElementById('main').style.display = 'none';
 
   try {
-    const resp = await fetch(
-      `${url}/rest/v1/vref_valuations?select=*&order=model_year.asc`,
-      { headers: { 'apikey': key, 'Authorization': `Bearer ${key}` } }
-    );
-    if (!resp.ok) {
-      const e = await resp.json().catch(()=>({}));
-      throw new Error(e?.message || `HTTP ${resp.status}`);
-    }
-    allData = await resp.json();
+    const { data, error } = await sb
+      .from('vref_valuations')
+      .select('*')
+      .order('model_year', { ascending: true });
+    if (error) throw new Error(error.message);
+    allData = data || [];
     loading.style.display = 'none';
 
     if (!allData.length) {
@@ -508,6 +499,13 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') document.getElementById('nav-menu')?.classList.remove('open');
 });
+</script>
+<script>
+// Auto-load the dashboard after the auth guard confirms the session
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) loadData();
+})();
 </script>
 </body>
 </html>
