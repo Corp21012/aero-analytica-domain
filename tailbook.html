@@ -31,29 +31,29 @@ async function signOut() {
 </script>
 <style>
   *{box-sizing:border-box}
-  body{margin:0;background:#EDF0F3;font-family:'B612',system-ui,sans-serif}
-  .topbar{display:flex;align-items:center;gap:4px;padding:8px 14px;background:#15202B;border-bottom:2px solid #DE9020}
-  .topbar .brand{color:#EDF0F3;font-size:13px;font-weight:700;letter-spacing:.5px;margin-right:auto}
+  body{margin:0;background:#2e2e2e;font-family:'B612',system-ui,sans-serif}
+  .topbar{display:flex;align-items:center;gap:4px;padding:8px 14px;background:#353535;border-bottom:1px solid #444}
+  .topbar .brand{color:#d8d8d8;font-size:13px;font-weight:700;letter-spacing:.5px;margin-right:auto}
   .topbar .brand small{color:#DE9020;font-weight:400;margin-left:8px;font-family:'B612 Mono',monospace;font-size:10px}
-  .topbar span#user-email{font-size:11px;color:#4C5A68;margin-right:6px}
-  .topbar a{font-size:12px;color:#9FB0BF;cursor:pointer;text-decoration:none;padding:5px 11px;border:1px solid #2C3B4A;border-radius:6px;transition:background .15s}
-  .topbar a:hover{background:#1F2D3B;color:#EDF0F3}
+  .topbar span#user-email{font-size:11px;color:#777;margin-right:6px}
+  .topbar a{font-size:12px;color:#888;cursor:pointer;text-decoration:none;padding:5px 11px;border:1px solid #444;border-radius:6px;transition:background .15s}
+  .topbar a:hover{background:#444;color:#d8d8d8}
   #root{min-height:calc(100vh - 44px)}
-  .loading{padding:60px;text-align:center;color:#4C5A68;font-size:13px}
+  .loading{padding:60px;text-align:center;color:#8f8f8f;font-size:13px}
   /* settings modal — Tailbook palette */
   .modal-overlay{display:none;position:fixed;inset:0;background:rgba(21,32,43,.45);z-index:200;align-items:center;justify-content:center}
   .modal-overlay.open{display:flex}
-  .modal{background:#FFFFFF;border:1px solid #D8DEE5;border-radius:12px;padding:28px;width:100%;max-width:340px;font-family:'B612',system-ui,sans-serif}
-  .modal h2{font-size:15px;color:#15202B;margin:0 0 18px}
+  .modal{background:#353535;border:1px solid #444;border-radius:12px;padding:28px;width:100%;max-width:340px;font-family:'B612',system-ui,sans-serif}
+  .modal h2{font-size:15px;color:#d8d8d8;margin:0 0 18px}
   .modal .field{margin-bottom:12px}
-  .modal .field label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#4C5A68;margin-bottom:6px}
-  .modal .field input{width:100%;background:#EDF0F3;border:1px solid #D8DEE5;border-radius:7px;padding:9px 11px;color:#15202B;font-size:13px;font-family:'B612 Mono',monospace}
+  .modal .field label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:6px}
+  .modal .field input{width:100%;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:7px;padding:9px 11px;color:#d8d8d8;font-size:13px;font-family:'B612 Mono',monospace}
   .modal .field input:focus{outline:none;border-color:#DE9020}
   .modal-btns{display:flex;gap:8px;margin-top:14px}
   .modal-btns button{flex:1;padding:9px;border-radius:7px;border:none;font-size:13px;font-family:'B612',sans-serif;cursor:pointer}
-  .modal-save{background:#15202B;color:#EDF0F3}
-  .modal-save:hover:not(:disabled){background:#2C3B4A}
-  .modal-cancel{background:transparent;color:#4C5A68;border:1px solid #D8DEE5 !important}
+  .modal-save{background:#505050;color:#e0e0e0}
+  .modal-save:hover:not(:disabled){background:#5c5c5c}
+  .modal-cancel{background:transparent;color:#888;border:1px solid #444 !important}
   .modal-msg{font-size:12px;margin-top:10px;text-align:center;min-height:16px}
 </style>
 </head>
@@ -131,16 +131,18 @@ async function saveSettings() {
 const { useState, useEffect, useRef } = React;
 
 /* ── Tailbook — business aviation CRM ─────────────────────────────
-   Palette: aluminum #EDF0F3 · ink #15202B · slate #4C5A68
-            annunciator amber #DE9020 · advisory green #2F7D5B · caution #C2402A
+   Palette: dark #2e2e2e · panel #353535 · text #d8d8d8 · slate #8f8f8f
+            annunciator amber #DE9020 · advisory green #6abf7a · caution #df7a6e
    Type: B612 (Airbus cockpit face) · B612 Mono for registrations/data
 ─────────────────────────────────────────────────────────────────── */
 
 const C = {
-  bg: "#EDF0F3", panel: "#FFFFFF", ink: "#15202B", slate: "#4C5A68",
-  line: "#D8DEE5", amber: "#DE9020", amberSoft: "#FBF1DF",
-  green: "#2F7D5B", greenSoft: "#E4F1EA", red: "#C2402A",
-  navySoft: "#E3E9F0",
+  bg: "#2e2e2e", panel: "#353535", panel2: "#2a2a2a",
+  ink: "#d8d8d8", slate: "#8f8f8f", line: "#444",
+  fill: "#505050", bar: "#262626",
+  amber: "#DE9020", amberSoft: "#3a2f1c",
+  green: "#6abf7a", greenSoft: "#243a2c", red: "#df7a6e",
+  navySoft: "#3d3d3d",
 };
 const FONT = "'B612', system-ui, sans-serif";
 const MONO = "'B612 Mono', ui-monospace, monospace";
@@ -415,10 +417,10 @@ function recordContext(type, r, fields, data) {
 /* ── small parts ── */
 function SidePanel({ onClose, children, z = 50, width = 520, bg = C.bg }) {
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(21,32,43,0.32)", zIndex: z }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.32)", zIndex: z }}>
       <div onClick={(e) => e.stopPropagation()} style={{
         position: "absolute", top: 0, right: 0, bottom: 0, width: "100%", maxWidth: width,
-        background: bg, borderLeft: `1px solid ${C.line}`, boxShadow: "-10px 0 28px rgba(21,32,43,0.18)",
+        background: bg, borderLeft: `1px solid ${C.line}`, boxShadow: "-10px 0 28px rgba(0,0,0,0.18)",
         overflowY: "auto", animation: "tbSlideIn 0.18s ease-out",
       }}>
         {children}
@@ -432,7 +434,7 @@ function Placard({ text }) {
   return (
     <span style={{
       fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
-      color: C.ink, background: "#F3F5F7", border: `1px solid ${C.line}`,
+      color: C.ink, background: "#2f2f2f", border: `1px solid ${C.line}`,
       borderRadius: 3, padding: "2px 6px", whiteSpace: "nowrap",
     }}>{text}</span>
   );
@@ -446,7 +448,7 @@ function StageStrip({ stages, current }) {
       {stages.map((s, i) => (
         <div key={s} style={{
           flex: 1, height: 4, borderRadius: 2,
-          background: i < idx ? "#B9C3CD" : i === idx ? (last ? C.green : C.amber) : "#E5E9ED",
+          background: i < idx ? "#6b6b6b" : i === idx ? (last ? C.green : C.amber) : "#3d3d3d",
         }} />
       ))}
     </div>
@@ -455,10 +457,10 @@ function StageStrip({ stages, current }) {
 
 function Btn({ children, onClick, tone = "ghost", small, disabled, style, ...rest }) {
   const tones = {
-    primary: { background: C.ink, color: "#fff", border: `1px solid ${C.ink}` },
+    primary: { background: C.fill, color: "#fff", border: `1px solid ${C.fill}` },
     amber: { background: C.amber, color: "#fff", border: `1px solid ${C.amber}` },
-    ghost: { background: "#fff", color: C.ink, border: `1px solid ${C.line}` },
-    danger: { background: "#fff", color: C.red, border: `1px solid ${C.line}` },
+    ghost: { background: C.panel2, color: C.ink, border: `1px solid ${C.line}` },
+    danger: { background: C.panel2, color: C.red, border: `1px solid ${C.line}` },
   };
   return (
     <button onClick={onClick} disabled={disabled} {...rest} style={{
@@ -495,7 +497,7 @@ function Field({ def, value, onChange, all }) {
   const inputStyle = {
     width: "100%", boxSizing: "border-box", padding: "10px 12px",
     border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14,
-    fontFamily: def.mono ? MONO : FONT, color: C.ink, background: "#fff", outline: "none",
+    fontFamily: def.mono ? MONO : FONT, color: C.ink, background: C.panel2, outline: "none",
   };
   const showSelect = options && !custom && !(value && !options.includes(value));
   return (
@@ -542,7 +544,7 @@ function Card({ type, r, stages, onOpen }) {
         display: "block", width: "100%", textAlign: "left", background: C.panel,
         border: `1px solid ${C.line}`, borderRadius: 8, padding: "12px 12px 10px",
         marginBottom: 8, cursor: "grab", fontFamily: FONT,
-        boxShadow: "0 1px 2px rgba(21,32,43,0.05)",
+        boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
       }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.ink, lineHeight: 1.3 }}>{p.title(r)}</div>
@@ -673,7 +675,7 @@ function Detail({ type, record, fields, stages, data, activity, onClose, onUpdat
             {!editing ? (
               <>
                 {fields.map((f) => record[f.k] ? (
-                  <div key={f.k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", borderBottom: `1px solid #F0F2F5` }}>
+                  <div key={f.k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", borderBottom: `1px solid #404040` }}>
                     <span style={{ fontSize: 12, color: C.slate }}>{f.label}</span>
                     <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, fontFamily: f.mono ? MONO : FONT, textAlign: "right" }}>{record[f.k]}</span>
                   </div>
@@ -707,7 +709,7 @@ function Detail({ type, record, fields, stages, data, activity, onClose, onUpdat
                   const rec = (data[l.refType] || []).find((x) => x.id === l.refId);
                   if (!rec) return null;
                   return (
-                    <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: `1px solid #F0F2F5` }}>
+                    <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: `1px solid #404040` }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{PIPELINES[l.refType].title(rec)}</div>
                         <div style={{ fontSize: 11, color: C.slate }}>{PIPELINES[l.refType].label} · {rec.stage}</div>
@@ -719,7 +721,7 @@ function Detail({ type, record, fields, stages, data, activity, onClose, onUpdat
                 const ac = data.aircraft.find((a) => a.id === l.aircraftId);
                 if (!ac) return null;
                 return (
-                  <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: `1px solid #F0F2F5` }}>
+                  <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: `1px solid #404040` }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{PIPELINES.aircraft.title(ac)} <Placard text={ac.reg} /></div>
                       <div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>{ac.offMarket ? "Off market" : ac.stage}{ac.ask ? ` · ${ac.ask}` : ""}</div>
@@ -747,7 +749,7 @@ function Detail({ type, record, fields, stages, data, activity, onClose, onUpdat
             <div style={{ background: C.panel, border: `1px solid ${C.green}`, borderRadius: 10, padding: 14, marginBottom: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10 }}>Sale record</div>
               {(record.sales || []).map((sl, i) => (
-                <div key={i} style={{ fontSize: 13, color: C.ink, padding: "5px 0", borderBottom: `1px solid #F0F2F5` }}>
+                <div key={i} style={{ fontSize: 13, color: C.ink, padding: "5px 0", borderBottom: `1px solid #404040` }}>
                   <span style={{ fontFamily: MONO, fontWeight: 700 }}>{sl.price || "Undisclosed"}</span> · {sl.date}{sl.buyer ? ` · ${sl.buyer}` : ""}
                 </div>
               ))}
@@ -767,7 +769,7 @@ function Detail({ type, record, fields, stages, data, activity, onClose, onUpdat
                       <label style={{ display: "block", marginBottom: 10 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 4 }}>Closed via deal</div>
                         <select value={sale.dealId} onChange={(e) => setSale((x) => ({ ...x, dealId: e.target.value }))}
-                          style={{ width: "100%", padding: "10px 12px", border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14, fontFamily: FONT, background: "#fff" }}>
+                          style={{ width: "100%", padding: "10px 12px", border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14, fontFamily: FONT, background: C.panel2 }}>
                           <option value="">— none —</option>
                           {linksFor(data, "aircraft", record.id).filter((l) => l.refType === "deals").map((l) => {
                             const d = data.deals.find((x) => x.id === l.refId);
@@ -801,7 +803,7 @@ function Detail({ type, record, fields, stages, data, activity, onClose, onUpdat
             </div>
             {aiMsg && (
               <div style={{ marginTop: 10, padding: 10, borderRadius: 6, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap",
-                background: aiMsg.ok ? C.greenSoft : "#FBEAE5", color: aiMsg.ok ? C.green : C.red }}>
+                background: aiMsg.ok ? C.greenSoft : "#3d2a2a", color: aiMsg.ok ? C.green : C.red }}>
                 {aiMsg.text}
               </div>
             )}
@@ -818,7 +820,7 @@ function Detail({ type, record, fields, stages, data, activity, onClose, onUpdat
             {acts.length === 0 ? (
               <div style={{ fontSize: 12, color: C.slate }}>Nothing logged yet — stage moves and notes will appear here.</div>
             ) : acts.map((a, i) => (
-              <div key={i} style={{ padding: "7px 0", borderBottom: `1px solid #F0F2F5`, fontSize: 13, color: C.ink }}>
+              <div key={i} style={{ padding: "7px 0", borderBottom: `1px solid #404040`, fontSize: 13, color: C.ink }}>
                 <span style={{ fontFamily: MONO, fontSize: 11, color: C.slate, marginRight: 8 }}>{a.ts}</span>{a.text}
               </div>
             ))}
@@ -864,7 +866,7 @@ function EditableCell({ r, f, onCommit, onOpenRecord, primary }) {
       <td style={{ ...tdStyle(), padding: "4px 6px" }}>
         {options ? (
           <select autoFocus value={v} onChange={(e) => commit(e.target.value)} onBlur={() => setEditing(false)}
-            style={{ width: "100%", minWidth: 110, padding: "5px 6px", border: `1px solid ${C.amber}`, borderRadius: 5, fontSize: 12, fontFamily: FONT, background: "#fff" }}>
+            style={{ width: "100%", minWidth: 110, padding: "5px 6px", border: `1px solid ${C.amber}`, borderRadius: 5, fontSize: 12, fontFamily: FONT, background: C.panel2 }}>
             <option value="">—</option>
             {r[f.k] && !options.includes(r[f.k]) && <option value={r[f.k]}>{r[f.k]}</option>}
             {options.map((o) => <option key={o} value={o}>{o}</option>)}
@@ -881,7 +883,7 @@ function EditableCell({ r, f, onCommit, onOpenRecord, primary }) {
   return (
     <td onClick={() => { setV(r[f.k] || ""); setEditing(true); }}
       style={{ ...tdStyle(), fontFamily: f.mono ? MONO : FONT, cursor: "text" }}>
-      {r[f.k] || <span style={{ color: "#B6C0CA" }}>—</span>}
+      {r[f.k] || <span style={{ color: "#6b6b6b" }}>—</span>}
     </td>
   );
 }
@@ -913,7 +915,7 @@ function ListView({ type, records, stages, data, onOpen, onCellEdit, onStage, on
           </thead>
           <tbody>
             {records.map((r) => (
-              <tr key={r.id} style={{ borderTop: `1px solid #F0F2F5` }}>
+              <tr key={r.id} style={{ borderTop: `1px solid #404040` }}>
                 <td style={{ ...tdStyle(), padding: "6px 8px" }}>
                   <select value={r.stage} onChange={(e) => onStage(r, e.target.value)} style={{
                     fontSize: 11, fontWeight: 700, padding: "4px 6px", borderRadius: 4, border: "none", cursor: "pointer", fontFamily: FONT,
@@ -940,7 +942,7 @@ function ListView({ type, records, stages, data, onOpen, onCellEdit, onStage, on
 }
 function thStyle() {
   return { textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: C.slate,
-    letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap", borderBottom: `1px solid ${C.line}`, background: "#F7F9FA" };
+    letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap", borderBottom: `1px solid ${C.line}`, background: "#2f2f2f" };
 }
 function tdStyle() {
   return { padding: "10px 12px", fontSize: 13, color: C.ink, whiteSpace: "nowrap", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" };
@@ -968,7 +970,7 @@ function Registry({ data, onOpen, onRelist }) {
               <span style={{
                 fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
                 padding: "3px 8px", borderRadius: 4,
-                background: r.offMarket ? "#EAEDF0" : r.stage === "Sold" ? C.greenSoft : C.amberSoft,
+                background: r.offMarket ? "#3a3a3a" : r.stage === "Sold" ? C.greenSoft : C.amberSoft,
                 color: r.offMarket ? C.slate : r.stage === "Sold" ? C.green : C.amber,
               }}>{r.offMarket ? "Off market" : r.stage}</span>
             </div>
@@ -1043,12 +1045,12 @@ function ColumnManager({ type, data, onClose, onToggle, onMove, onAddField, onRe
         {cols.map((f, i) => {
           const off = hidden.has(f.k);
           return (
-            <div key={f.k} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: `1px solid #F0F2F5` }}>
+            <div key={f.k} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: `1px solid #404040` }}>
               <button onClick={() => onToggle(f.k)} aria-label={off ? `Show ${f.label}` : `Hide ${f.label}`} style={{
                 width: 38, height: 22, borderRadius: 11, border: "none", cursor: "pointer", position: "relative", flexShrink: 0,
-                background: off ? "#D4DAE1" : C.green,
+                background: off ? "#555" : C.green,
               }}>
-                <span style={{ position: "absolute", top: 3, left: off ? 4 : 20, width: 16, height: 16, borderRadius: 8, background: "#fff", transition: "left 0.15s" }} />
+                <span style={{ position: "absolute", top: 3, left: off ? 4 : 20, width: 16, height: 16, borderRadius: 8, background: C.ink, transition: "left 0.15s" }} />
               </button>
               <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: off ? C.slate : C.ink }}>
                 {f.label}{f.custom && <span style={{ fontFamily: MONO, fontSize: 10, color: C.amber, marginLeft: 6 }}>CUSTOM</span>}
@@ -1165,8 +1167,8 @@ function StageEditor({ type, stages, onClose, onSave }) {
     });
     if (names.length) onSave(names, renameMap);
   };
-  const inputStyle = { flex: 1, fontFamily: FONT, fontSize: 13, padding: "8px 10px", border: `1px solid ${C.line}`, borderRadius: 6, background: "#fff", color: C.ink, minWidth: 0 };
-  const iconBtn = (disabled) => ({ fontFamily: FONT, fontSize: 13, width: 30, height: 32, border: `1px solid ${C.line}`, borderRadius: 6, background: "#fff", color: disabled ? "#C3CCD4" : C.ink, cursor: disabled ? "default" : "pointer", padding: 0 });
+  const inputStyle = { flex: 1, fontFamily: FONT, fontSize: 13, padding: "8px 10px", border: `1px solid ${C.line}`, borderRadius: 6, background: C.panel2, color: C.ink, minWidth: 0 };
+  const iconBtn = (disabled) => ({ fontFamily: FONT, fontSize: 13, width: 30, height: 32, border: `1px solid ${C.line}`, borderRadius: 6, background: C.panel2, color: disabled ? "#666666" : C.ink, cursor: disabled ? "default" : "pointer", padding: 0 });
   return (
     <SidePanel onClose={onClose} z={70} width={420}>
       <div style={{ fontFamily: FONT, padding: 16 }}>
@@ -1177,7 +1179,7 @@ function StageEditor({ type, stages, onClose, onSave }) {
             <input value={x.name} onChange={(e) => rename(x.id, e.target.value)} style={inputStyle} aria-label={`Stage ${i + 1} name`} />
             <button onClick={() => move(i, -1)} disabled={i === 0} style={iconBtn(i === 0)} aria-label="Move up">↑</button>
             <button onClick={() => move(i, 1)} disabled={i === items.length - 1} style={iconBtn(i === items.length - 1)} aria-label="Move down">↓</button>
-            <button onClick={() => removeItem(x.id)} disabled={items.length <= 1} style={{ ...iconBtn(items.length <= 1), color: items.length <= 1 ? "#C3CCD4" : C.red }} aria-label="Remove stage">✕</button>
+            <button onClick={() => removeItem(x.id)} disabled={items.length <= 1} style={{ ...iconBtn(items.length <= 1), color: items.length <= 1 ? "#666666" : C.red }} aria-label="Remove stage">✕</button>
           </div>
         ))}
         <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
@@ -1264,15 +1266,15 @@ function ActionsMenu({ tab, view, onScanner, onStages, onImport, onExport, onCol
     <div ref={ref} style={{ position: "relative" }}>
       <button onClick={() => setOpen((o) => !o)} style={{
         fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 7,
-        border: "none", cursor: "pointer", background: C.ink, color: "#fff", display: "flex", alignItems: "center", gap: 7,
+        border: "none", cursor: "pointer", background: C.fill, color: "#fff", display: "flex", alignItems: "center", gap: 7,
       }}>
         Actions <span style={{ fontSize: 9, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s", color: C.amber }}>▼</span>
       </button>
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 85, minWidth: 240,
-          background: C.ink, borderRadius: 10, padding: 6, boxShadow: "0 14px 34px rgba(21,32,43,0.4)",
-          border: "1px solid #2C3B4A",
+          background: C.bar, borderRadius: 10, padding: 6, boxShadow: "0 14px 34px rgba(0,0,0,0.4)",
+          border: "1px solid #444444",
         }}>
           {items.map((it) => (
             <button key={it.label} onClick={() => { setOpen(false); it.fn(); }} style={{
@@ -1280,7 +1282,7 @@ function ActionsMenu({ tab, view, onScanner, onStages, onImport, onExport, onCol
               border: "none", borderRadius: 7, background: "transparent", cursor: "pointer",
               fontFamily: FONT, textAlign: "left", color: "#EDF0F3",
             }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#1F2D3B"; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#2a2a2a"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
               <span style={{ color: C.amber, fontSize: 14, width: 18, textAlign: "center" }}>{it.icon}</span>
               <span style={{ minWidth: 0 }}>
@@ -1301,7 +1303,7 @@ function FilterPanel({ type, stages, fields, value, onChange, onClose }) {
   const texts = value.texts || {};
   const toggleStage = (s) => onChange({ ...value, stages: sel.includes(s) ? sel.filter((x) => x !== s) : [...sel, s] });
   const setText = (k, q) => onChange({ ...value, texts: { ...texts, [k]: q } });
-  const inputStyle = { width: "100%", boxSizing: "border-box", fontFamily: FONT, fontSize: 13, padding: "8px 10px", border: `1px solid ${C.line}`, borderRadius: 6, background: "#fff", color: C.ink };
+  const inputStyle = { width: "100%", boxSizing: "border-box", fontFamily: FONT, fontSize: 13, padding: "8px 10px", border: `1px solid ${C.line}`, borderRadius: 6, background: C.panel2, color: C.ink };
   return (
     <SidePanel onClose={onClose} z={70} width={400}>
       <div style={{ fontFamily: FONT, padding: 16 }}>
@@ -1611,7 +1613,7 @@ function Tailbook() {
       `}</style>
 
       {/* identity bar + global search */}
-      <div style={{ background: C.ink, padding: "12px 16px", fontFamily: FONT, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+      <div style={{ background: C.bar, padding: "12px 16px", fontFamily: FONT, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginRight: "auto" }}>
           <span style={{ color: "#fff", fontSize: 19, fontWeight: 700, letterSpacing: "0.02em" }}>TAILBOOK</span>
           <span style={{ color: "#8FA0B1", fontFamily: MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" }}>Business aviation CRM</span>
@@ -1626,20 +1628,20 @@ function Tailbook() {
             style={{
               width: "100%", boxSizing: "border-box", fontFamily: MONO, fontSize: 12,
               letterSpacing: "0.04em", padding: "8px 12px", borderRadius: 7,
-              border: "1px solid #2C3B4A", background: "#1F2D3B", color: C.amber, outline: "none",
+              border: "1px solid #444444", background: "#2a2a2a", color: C.amber, outline: "none",
             }}
           />
           {query.trim() && (
             <div style={{
               position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 80,
-              background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8,
-              maxHeight: 340, overflowY: "auto", boxShadow: "0 12px 30px rgba(21,32,43,0.3)",
+              background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 8,
+              maxHeight: 340, overflowY: "auto", boxShadow: "0 12px 30px rgba(0,0,0,0.3)",
             }}>
               {searchResults.length === 0 && <div style={{ padding: "12px 14px", fontSize: 12, color: C.slate }}>No matches for “{query.trim()}”</div>}
               {searchResults.map((res) => (
                 <button key={res.type + res.r.id} onClick={() => goToResult(res)} style={{
                   display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, width: "100%",
-                  padding: "10px 14px", border: "none", borderBottom: `1px solid #F0F2F5`,
+                  padding: "10px 14px", border: "none", borderBottom: `1px solid #404040`,
                   background: "transparent", cursor: "pointer", fontFamily: FONT, textAlign: "left",
                 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{res.title}</span>
@@ -1676,7 +1678,7 @@ function Tailbook() {
               return (
                 <button key={v} onClick={() => setView(tab, v)} style={{
                   fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 14px", border: "none", cursor: "pointer",
-                  background: on ? C.ink : "transparent", color: on ? "#fff" : C.slate, textTransform: "capitalize",
+                  background: on ? C.fill : "transparent", color: on ? "#fff" : C.slate, textTransform: "capitalize",
                 }}>{v}</button>
               );
             })}
@@ -1727,7 +1729,7 @@ function Tailbook() {
       <button onClick={() => setAdding(true)} aria-label="Add record" style={{
         position: "fixed", right: 18, bottom: 22, width: 54, height: 54, borderRadius: 27,
         background: C.amber, color: "#fff", border: "none", fontSize: 28, fontFamily: FONT,
-        boxShadow: "0 4px 14px rgba(21,32,43,0.3)", cursor: "pointer", zIndex: 40, lineHeight: 0,
+        boxShadow: "0 4px 14px rgba(0,0,0,0.3)", cursor: "pointer", zIndex: 40, lineHeight: 0,
       }}>+</button>
 
       {adding && <AddModal type={tab} fields={tab === "contacts" ? null : getFields(tab, data)} onClose={() => setAdding(false)} onCreate={create(tab)} />}
@@ -1748,9 +1750,9 @@ function Tailbook() {
       {toast && (
         <div role="status" style={{
           position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)",
-          background: toast.ok ? C.ink : C.red, color: "#fff", fontFamily: FONT, fontSize: 13,
+          background: toast.ok ? C.bar : C.red, color: "#fff", fontFamily: FONT, fontSize: 13,
           padding: "10px 18px", borderRadius: 8, zIndex: 120, maxWidth: "86vw",
-          boxShadow: "0 8px 22px rgba(21,32,43,0.35)",
+          boxShadow: "0 8px 22px rgba(0,0,0,0.35)",
         }}>{toast.text}</div>
       )}
       {openRecord && (
