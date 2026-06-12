@@ -24,6 +24,7 @@
   select,input[type=number],input[type=text]{font-family:Helvetica,Arial,sans-serif;font-size:13px;background:#262626;color:#d8d8d8;border:1px solid #4a4a4a;border-radius:6px;padding:7px 9px}
   select{min-width:300px}
   input[type=number]{width:110px;text-align:right;font-family:ui-monospace,Menlo,monospace}
+  input.money{width:124px;text-align:right;font-family:ui-monospace,Menlo,monospace}
   input[type=range]{accent-color:#DE9020;width:100%}
   .specs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
   .chip{background:#353535;border:1px solid #444;border-radius:6px;padding:6px 11px;font-size:12px;color:#999}
@@ -102,15 +103,15 @@ document.addEventListener('click', () => { const m=document.getElementById('nav-
       <div class="row"><label>Owner flight hours / yr <span class="unit" id="hrsLabel"></span></label><input type="number" id="ownerHrs" min="0" step="10" oninput="recalc()"></div>
       <div style="padding:4px 0 8px"><input type="range" id="ownerHrsRange" min="0" max="1200" step="10" oninput="document.getElementById('ownerHrs').value=this.value;recalc()"></div>
       <div class="row"><label>Average block speed <span class="unit">kts</span></label><input type="number" id="avgSpeed" min="50" step="5" oninput="recalc()"></div>
-      <div class="row"><label>Fuel price <span class="unit">$/gal</span></label><input type="number" id="fuelPrice" min="0" step="0.10" oninput="recalc()"></div>
-      <div class="row"><label>Maintenance labor rate <span class="unit">$/hr</span></label><input type="number" id="laborRate" min="0" step="5" oninput="recalc()"></div>
-      <div class="row"><label>Acquisition cost <span class="unit">$</span></label><input type="number" id="acq" min="0" step="100000" oninput="recalc()"></div>
+      <div class="row"><label>Fuel price <span class="unit">$/gal</span></label><input type="text" inputmode="decimal" class="money" id="fuelPrice" oninput="recalc()" onblur="blurMoney(this)"></div>
+      <div class="row"><label>Maintenance labor rate <span class="unit">$/hr</span></label><input type="text" inputmode="numeric" class="money" id="laborRate" oninput="recalc()" onblur="blurMoney(this)"></div>
+      <div class="row"><label>Acquisition cost <span class="unit">$</span></label><input type="text" inputmode="numeric" class="money" id="acq" oninput="recalc()" onblur="blurMoney(this)"></div>
       <div class="row"><label><input type="checkbox" id="useDep" onchange="recalc()" style="margin-right:6px;accent-color:#DE9020">Market depreciation <span class="unit">%/yr</span></label><input type="number" id="depPct" min="0" max="20" step="0.5" value="3" oninput="recalc()"></div>
     </div>
     <div class="panel">
       <h2>Charter offset</h2>
       <div class="row"><label>Charter hours / yr</label><input type="number" id="charterHrs" min="0" step="10" value="0" oninput="recalc()"></div>
-      <div class="row"><label>Charter rate <span class="unit">$/hr</span></label><input type="number" id="charterRate" min="0" step="100" value="0" oninput="recalc()"></div>
+      <div class="row"><label>Charter rate <span class="unit">$/hr</span></label><input type="text" inputmode="numeric" class="money" id="charterRate" value="$0" oninput="recalc()" onblur="blurMoney(this)"></div>
       <div class="row"><label>Management commission <span class="unit">%</span></label><input type="number" id="comm" min="0" max="50" step="1" value="15" oninput="recalc()"></div>
     </div>
   </div>
@@ -153,8 +154,8 @@ document.addEventListener('click', () => { const m=document.getElementById('nav-
     <div style="display:grid;gap:9px">
       <input type="text" id="rptCompany" placeholder="Client company (e.g. Keller Aviation Holdings)" style="width:100%">
       <input type="text" id="rptPrincipal" placeholder="Principal name (e.g. Marta Keller)" style="width:100%">
-      <input type="number" id="rptAsk" placeholder="Asking price $ (optional)" style="width:100%;text-align:left">
-      <input type="number" id="rptBook" placeholder="VREF book value $ (optional)" style="width:100%;text-align:left">
+      <input type="text" inputmode="numeric" id="rptAsk" placeholder="Asking price (optional)" style="width:100%" onblur="blurMoneySoft(this)">
+      <input type="text" inputmode="numeric" id="rptBook" placeholder="VREF book value (optional)" style="width:100%" onblur="blurMoneySoft(this)">
       <textarea id="rptNote" placeholder="Broker note shown to the client (optional)" rows="3" style="font-family:Helvetica,Arial,sans-serif;font-size:13px;background:#262626;color:#d8d8d8;border:1px solid #4a4a4a;border-radius:6px;padding:7px 9px;resize:vertical"></textarea>
       <label style="font-size:12px;color:#aaa"><input type="checkbox" id="rptShowCharter" style="accent-color:#DE9020;margin-right:6px">Show charter offset scenario to client</label>
     </div>
@@ -174,7 +175,13 @@ const FIX_FIELDS = [["f_captain","Captain"],["f_copilot","Copilot"],["f_fa","Fli
 let AC = null;
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => n == null || isNaN(n) ? "—" : "$" + Math.round(n).toLocaleString();
-const num = (id) => parseFloat($(id).value) || 0;
+const num = (id) => parseFloat(String($(id).value).replace(/[$,\s]/g, "")) || 0;
+const fmtIn = (n) => {
+  if (n == null || isNaN(n)) return "";
+  return Number.isInteger(n) ? "$" + n.toLocaleString() : "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+const setMoney = (id, val) => { $(id).value = fmtIn(val || 0); };
+function blurMoney(el) { const v = parseFloat(String(el.value).replace(/[$,\s]/g, "")); el.value = isNaN(v) ? "" : fmtIn(v); recalc(); }
 
 function init() {
   const sel = $("acSelect");
@@ -191,7 +198,7 @@ function init() {
 }
 
 function rowHtml(id, label) {
-  return '<div class="row"><label>' + label + ' <span class="unit">$</span></label><input type="number" id="' + id + '" min="0" step="10" oninput="recalc()"></div>';
+  return '<div class="row"><label>' + label + '</label><input type="text" inputmode="numeric" class="money" id="' + id + '" oninput="recalc()" onblur="blurMoney(this)"></div>';
 }
 
 function loadAircraft(idx) {
@@ -207,17 +214,17 @@ function loadAircraft(idx) {
 function resetVar() {
   $("gph").value = AC.fuel_gph || 0;
   $("mlhrs").value = AC.maint_lab_hrs_fh || 0;
-  VAR_FIELDS.forEach(([k]) => { $(k).value = AC[k] || 0; });
+  VAR_FIELDS.forEach(([k]) => setMoney(k, AC[k]));
   recalc();
 }
-function resetFix() { FIX_FIELDS.forEach(([k]) => { $(k).value = AC[k] || 0; }); recalc(); }
+function resetFix() { FIX_FIELDS.forEach(([k]) => setMoney(k, AC[k])); recalc(); }
 function resetAll() {
   $("ownerHrs").value = AC.util_hrs || 250;
   $("ownerHrsRange").value = AC.util_hrs || 250;
   $("avgSpeed").value = AC.avg_speed || AC.s_cruise || 400;
-  $("fuelPrice").value = AC.fuel_price || 4.5;
-  $("laborRate").value = AC.labor_rate || 155;
-  $("acq").value = AC.acq || 0;
+  setMoney("fuelPrice", AC.fuel_price || 4.5);
+  setMoney("laborRate", AC.labor_rate || 155);
+  setMoney("acq", AC.acq || 0);
   $("useDep").checked = false;
   resetVar(); resetFix();
 }
@@ -254,6 +261,7 @@ function recalc() {
   $("hrsLabel").textContent = "(Conklin baseline " + (AC.util_hrs || "—") + ")";
 }
 
+function blurMoneySoft(el) { const v = parseFloat(String(el.value).replace(/[$,\s]/g, "")); el.value = isNaN(v) ? "" : fmtIn(v); }
 function openReportModal() {
   document.getElementById("rptAcName").textContent = AC.name + " — captures all current assumptions";
   document.getElementById("rptResult").textContent = "";
