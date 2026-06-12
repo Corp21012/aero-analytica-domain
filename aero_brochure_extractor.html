@@ -177,6 +177,8 @@ async function signOut() {
 <div class="controls">
   <button class="btn btn-primary" id="runBtn" disabled onclick="runAll()">▶ Extract brochures</button>
   <button class="btn" id="csvBtn" style="display:none" onclick="exportCSV()">⬇ Export CSV</button>
+  <button class="btn" id="tbBtn" style="display:none" onclick="sendToTailbook()">✈ Send to Tailbook</button>
+  <span id="tb-status" style="font-size:12px;color:#888;align-self:center"></span>
 </div>
 <div id="err-msg" class="err"></div>
 
@@ -373,6 +375,7 @@ async function runAll() {
   if (allRecords.length) {
     document.getElementById('results-area').style.display = 'block';
     document.getElementById('csvBtn').style.display = 'inline-flex';
+    document.getElementById('tbBtn').style.display = 'inline-flex';
     renderAll();
   }
 }
@@ -450,6 +453,55 @@ function exportCSV() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href=url; a.download='aero_brochure_extract.csv'; a.click();
   URL.revokeObjectURL(url);
+}
+
+// ── Send to Tailbook ──────────────────────────────────────────────────────────
+async function sendToTailbook() {
+  const btn = document.getElementById('tbBtn');
+  const status = document.getElementById('tb-status');
+  if (!allRecords.length) { status.textContent = 'Nothing to send — extract brochures first.'; return; }
+
+  btn.disabled = true;
+  status.style.color = '#888';
+
+  const { data: { session } } = await window._sb.auth.getSession();
+  if (!session) { window.location.href = 'index.html'; return; }
+
+  let sent = 0, failed = 0;
+  for (let i = 0; i < allRecords.length; i++) {
+    const rec = allRecords[i];
+    status.textContent = `Sending ${i + 1} of ${allRecords.length}…`;
+    let pdfPath = null;
+    try {
+      const file = files.find(f => f.name === rec.source_file);
+      if (file) {
+        const safe = rec.source_file.replace(/[^a-zA-Z0-9._-]+/g, '_');
+        const path = `${Date.now()}_${safe}`;
+        const { error: upErr } = await window._sb.storage.from('brochures').upload(path, file, { contentType: 'application/pdf' });
+        if (!upErr) pdfPath = path;
+      }
+      const { error } = await window._sb.from('brochure_imports').insert({
+        source_file: rec.source_file || null,
+        pdf_path: pdfPath,
+        data: rec,
+        created_by: session.user.id,
+      });
+      if (error) throw error;
+      sent++;
+    } catch (e) {
+      console.error('Send failed for', rec.source_file, e);
+      failed++;
+    }
+  }
+
+  btn.disabled = false;
+  if (failed === 0) {
+    status.style.color = '#7dbf8a';
+    status.textContent = `✓ ${sent} aircraft sent — open Tailbook → Aircraft → “From scanner” to import.`;
+  } else {
+    status.style.color = '#d97070';
+    status.textContent = `${sent} sent, ${failed} failed — see browser console for details.`;
+  }
 }
 </script>
 

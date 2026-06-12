@@ -243,6 +243,7 @@ function withPrefs(d) {
   return {
     ...d,
     links: d.links || [],
+    stages: { ...Object.fromEntries(PIPE_KEYS.map((t) => [t, PIPELINES[t].stages])), ...(d.stages || {}) },
     prefs: {
       view: { ...per(() => "board"), ...(p.view || {}) },
       customFields: { ...per(() => []), ...(p.customFields || {}) },
@@ -266,6 +267,45 @@ function orderedFields(type, data) {
   all.forEach((f) => { if (!ord.includes(f.k)) seq.push(f); });
   return seq;
 }
+
+function getStages(type, data) {
+  const s = data && data.stages && data.stages[type];
+  return s && s.length ? s : PIPELINES[type].stages;
+}
+
+/* ── CSV helpers ── */
+const csvEsc = (v) => { v = v == null ? "" : String(v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+function toCSV(rows, cols) {
+  return [cols.map((c) => csvEsc(c.label)).join(","), ...rows.map((r) => cols.map((c) => csvEsc(r[c.k])).join(","))].join("\n");
+}
+function parseCSV(text) {
+  const rows = []; let row = [], cur = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else cur += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === ",") { row.push(cur); cur = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cur); cur = "";
+      if (row.length > 1 || row[0] !== "") rows.push(row);
+      row = [];
+    } else cur += ch;
+  }
+  row.push(cur);
+  if (row.length > 1 || row[0] !== "") rows.push(row);
+  return rows;
+}
+function downloadText(name, text) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+let DRAG = null; // record being dragged on the kanban
 
 const SEED = {
   aircraft: [
@@ -483,22 +523,19 @@ function Field({ def, value, onChange, all }) {
 }
 
 /* ── card ── */
-function Card({ type, r, onOpen, onStage }) {
+function Card({ type, r, stages, onOpen }) {
   const p = PIPELINES[type];
-  const idx = p.stages.indexOf(r.stage);
-  const arrow = (dir) => (e) => { e.stopPropagation(); onStage(r, p.stages[idx + dir]); };
-  const arrowStyle = (disabled) => ({
-    border: `1px solid ${C.line}`, background: "#fff", color: disabled ? "#C3CCD4" : C.ink,
-    borderRadius: 5, width: 26, height: 22, fontSize: 12, fontWeight: 700, cursor: disabled ? "default" : "pointer",
-    fontFamily: FONT, lineHeight: 0, padding: 0,
-  });
   return (
-    <div onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onOpen(); }} style={{
-      display: "block", width: "100%", textAlign: "left", background: C.panel,
-      border: `1px solid ${C.line}`, borderRadius: 8, padding: "12px 12px 10px",
-      marginBottom: 8, cursor: "pointer", fontFamily: FONT,
-      boxShadow: "0 1px 2px rgba(21,32,43,0.05)",
-    }}>
+    <div onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onOpen(); }}
+      draggable
+      onDragStart={(e) => { DRAG = { type, r }; e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", r.id); } catch (err) {} }}
+      onDragEnd={() => { DRAG = null; }}
+      style={{
+        display: "block", width: "100%", textAlign: "left", background: C.panel,
+        border: `1px solid ${C.line}`, borderRadius: 8, padding: "12px 12px 10px",
+        marginBottom: 8, cursor: "grab", fontFamily: FONT,
+        boxShadow: "0 1px 2px rgba(21,32,43,0.05)",
+      }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.ink, lineHeight: 1.3 }}>{p.title(r)}</div>
         <Placard text={p.placard(r)} />
@@ -507,25 +544,31 @@ function Card({ type, r, onOpen, onStage }) {
       {p.money(r) ? (
         <div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: C.ink, marginTop: 6 }}>{p.money(r)}</div>
       ) : null}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-        <button onClick={idx > 0 ? arrow(-1) : (e) => e.stopPropagation()} disabled={idx <= 0} aria-label="Move to previous stage" style={arrowStyle(idx <= 0)}>‹</button>
-        <div style={{ flex: 1 }}><StageStrip stages={p.stages} current={r.stage} /></div>
-        <button onClick={idx < p.stages.length - 1 ? arrow(1) : (e) => e.stopPropagation()} disabled={idx >= p.stages.length - 1} aria-label="Move to next stage" style={arrowStyle(idx >= p.stages.length - 1)}>›</button>
-      </div>
+      <div style={{ marginTop: 10 }}><StageStrip stages={stages} current={r.stage} /></div>
     </div>
   );
 }
 
 /* ── kanban board ── */
-function Board({ type, records, onOpen, onStage }) {
+function Board({ type, records, stages, onOpen, onStage }) {
   const p = PIPELINES[type];
+  const [overStage, setOverStage] = useState(null);
   return (
     <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "12px 14px 24px", WebkitOverflowScrolling: "touch" }}>
-      {p.stages.map((stage) => {
+      {stages.map((stage) => {
         const items = records.filter((r) => r.stage === stage);
-        const final = stage === p.stages[p.stages.length - 1];
+        const final = stage === stages[stages.length - 1];
+        const isOver = overStage === stage;
         return (
-          <div key={stage} style={{ minWidth: 260, width: "76vw", maxWidth: 300, flexShrink: 0 }}>
+          <div key={stage}
+            onDragOver={(e) => { if (DRAG && DRAG.type === type) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (overStage !== stage) setOverStage(stage); } }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverStage((s) => (s === stage ? null : s)); }}
+            onDrop={(e) => { e.preventDefault(); if (DRAG && DRAG.type === type && DRAG.r.stage !== stage) onStage(DRAG.r, stage); DRAG = null; setOverStage(null); }}
+            style={{
+              minWidth: 260, width: "76vw", maxWidth: 300, flexShrink: 0, borderRadius: 8,
+              outline: isOver ? `2px dashed ${C.amber}` : "none", outlineOffset: 2,
+              background: isOver ? C.amberSoft : "transparent", transition: "background 0.12s",
+            }}>
             <div style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
               padding: "8px 10px", borderRadius: 6, marginBottom: 8,
@@ -534,10 +577,10 @@ function Board({ type, records, onOpen, onStage }) {
               <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: final ? C.green : C.ink }}>{stage}</span>
               <span style={{ fontFamily: MONO, fontSize: 12, color: C.slate }}>{items.length}</span>
             </div>
-            {items.map((r) => <Card key={r.id} type={type} r={r} onOpen={() => onOpen(type, r.id)} onStage={onStage} />)}
+            {items.map((r) => <Card key={r.id} type={type} r={r} stages={stages} onOpen={() => onOpen(type, r.id)} />)}
             {items.length === 0 && (
               <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 14, fontSize: 12, color: C.slate, textAlign: "center" }}>
-                No {p.unitName}s here yet
+                Drop {p.unitName}s here
               </div>
             )}
           </div>
@@ -548,7 +591,7 @@ function Board({ type, records, onOpen, onStage }) {
 }
 
 /* ── detail sheet ── */
-function Detail({ type, record, fields, data, activity, onClose, onUpdate, onDelete, onLog, onLinkToggle, onSale }) {
+function Detail({ type, record, fields, stages, data, activity, onClose, onUpdate, onDelete, onLog, onLinkToggle, onSale }) {
   const [picker, setPicker] = useState(null); // 'deals' | 'charter' | 'aircraft'
   const [sale, setSale] = useState(null);     // {date, price, buyer, dealId} while recording
   const p = PIPELINES[type];
@@ -564,21 +607,21 @@ function Detail({ type, record, fields, data, activity, onClose, onUpdate, onDel
     try {
       const text = await askClaude(prompt);
       setAiMsg({ ok: true, text });
-      onLog(record.id, kind === "email" ? "Gmail draft created via assistant" : kind === "event" ? "Calendar event created via assistant" : `Assistant: ${text.slice(0, 120)}`);
+      onLog(record.id, kind === "email" ? "Email drafted via assistant" : kind === "event" ? "Meeting proposed via assistant" : `Assistant: ${text.slice(0, 120)}`);
     } catch (e) {
-      setAiMsg({ ok: false, text: `Couldn't reach Google Workspace: ${e.message}. Check that Gmail and Calendar are connected in Claude settings, then try again.` });
+      setAiMsg({ ok: false, text: e.message });
     }
     setAiBusy(null);
   };
 
   const ctx = recordContext(type, record, fields, data);
   const draftEmail = () => runAI("email",
-    `You are the assistant inside a business-aviation CRM. Using the Gmail tool, create a DRAFT email (do not send) to ${record.email || "the contact"} about this record:\n\n${ctx}\n\nWrite a concise, professional broker email appropriate for the current pipeline stage (e.g. next steps, documents needed, or scheduling). Then reply to me with one short sentence confirming the draft and its subject line.`);
+    `You are the assistant inside a business-aviation CRM. Write a concise, professional broker email to ${record.email || "the contact"} about this record, appropriate for the current pipeline stage (e.g. next steps, documents needed, or scheduling):\n\n${ctx}\n\nReply with a subject line and the email body, ready to copy.`);
   const scheduleEvent = () => runAI("event",
-    `You are the assistant inside a business-aviation CRM. Using the Google Calendar tool, create a 1-hour event for the logical next step for this record (e.g. pre-buy inspection kickoff call, aircraft viewing, charter departure prep). Pick a sensible weekday morning within the next 7 days unless the record specifies a date.\n\n${ctx}\n\nInvite ${record.email || "no one"} if an email is available. Then reply with one short sentence confirming the event title and time.`);
+    `You are the assistant inside a business-aviation CRM. Propose a 1-hour meeting for the logical next step on this record (e.g. pre-buy inspection kickoff call, aircraft viewing, charter departure prep). Pick a sensible weekday morning within the next 7 days unless the record specifies a date.\n\n${ctx}\n\nReply with the proposed event title, date/time, and a 2-line agenda, ready to copy into a calendar invite.`);
   const freeAsk = () => {
     if (!aiPrompt.trim()) return;
-    runAI("ask", `You are the assistant inside a business-aviation CRM with Gmail and Google Calendar tools available. Record context:\n\n${ctx}\n\nUser request: ${aiPrompt}`);
+    runAI("ask", `You are the assistant inside a business-aviation CRM. Record context:\n\n${ctx}\n\nUser request: ${aiPrompt}`);
     setAiPrompt("");
   };
 
@@ -591,7 +634,10 @@ function Detail({ type, record, fields, data, activity, onClose, onUpdate, onDel
         <div style={{ position: "sticky", top: 0, background: C.panel, borderBottom: `1px solid ${C.line}`, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, zIndex: 2 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 17, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title(record)}</div>
-            <div style={{ marginTop: 3 }}><Placard text={p.placard(record)} /></div>
+            <div style={{ marginTop: 3, display: "flex", alignItems: "center", gap: 8 }}>
+              <Placard text={p.placard(record)} />
+              {record.pdfPath ? <BrochureLink path={record.pdfPath} /> : null}
+            </div>
           </div>
           <Btn small onClick={onClose}>Close</Btn>
         </div>
@@ -600,9 +646,9 @@ function Detail({ type, record, fields, data, activity, onClose, onUpdate, onDel
           {/* stage selector */}
           <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 6 }}>Stage</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
-            {p.stages.map((s) => {
+            {stages.map((s) => {
               const on = record.stage === s;
-              const final = s === p.stages[p.stages.length - 1];
+              const final = s === stages[stages.length - 1];
               return (
                 <button key={s} onClick={() => { onUpdate({ ...record, stage: s }); onLog(record.id, `Moved to ${s}`); }} style={{
                   fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 10px", borderRadius: 6, cursor: "pointer",
@@ -832,12 +878,12 @@ function EditableCell({ r, f, onCommit, onOpenRecord, primary }) {
   );
 }
 
-function ListView({ type, records, data, onOpen, onCellEdit, onStage }) {
+function ListView({ type, records, stages, data, onOpen, onCellEdit, onStage }) {
   const p = PIPELINES[type];
   const hidden = new Set(data.prefs.columns[type].hidden);
   const cols = orderedFields(type, data).filter((f) => !hidden.has(f.k));
   const primaryKey = (PIPELINES[type].fields.find((f) => f.req) || cols[0] || {}).k;
-  const lastStage = p.stages[p.stages.length - 1];
+  const lastStage = stages[stages.length - 1];
   return (
     <div style={{ padding: "12px 14px 24px" }}>
       <div style={{ fontSize: 11, color: C.slate, marginBottom: 8 }}>Tap any cell to edit in place · tap the underlined name to open the record</div>
@@ -858,7 +904,7 @@ function ListView({ type, records, data, onOpen, onCellEdit, onStage }) {
                     background: r.stage === lastStage ? C.greenSoft : C.navySoft,
                     color: r.stage === lastStage ? C.green : C.ink,
                   }}>
-                    {p.stages.map((st) => <option key={st} value={st}>{st}</option>)}
+                    {stages.map((st) => <option key={st} value={st}>{st}</option>)}
                   </select>
                 </td>
                 {cols.map((f) => (
@@ -1061,12 +1107,137 @@ function Contacts({ contacts, onDelete }) {
 }
 
 /* ── app ── */
+function BrochureLink({ path }) {
+  const [busy, setBusy] = useState(false);
+  const openPdf = async (e) => {
+    e.stopPropagation();
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { data, error } = await window._sb.storage.from("brochures").createSignedUrl(path, 3600);
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener");
+    } catch (err) { alert("Couldn't open brochure: " + (err.message || err)); }
+    setBusy(false);
+  };
+  return (
+    <button onClick={openPdf} style={{
+      fontFamily: FONT, fontSize: 11, fontWeight: 700, color: C.amber, background: C.amberSoft,
+      border: `1px solid ${C.amber}`, borderRadius: 5, padding: "3px 8px", cursor: "pointer", whiteSpace: "nowrap",
+    }}>{busy ? "Opening…" : "📄 Brochure"}</button>
+  );
+}
+
+function StageEditor({ type, stages, onClose, onSave }) {
+  const p = PIPELINES[type];
+  const [items, setItems] = useState(stages.map((s, i) => ({ id: "s" + i, name: s, orig: s })));
+  const [draft, setDraft] = useState("");
+  const rename = (id, name) => setItems((arr) => arr.map((x) => (x.id === id ? { ...x, name } : x)));
+  const move = (i, dir) => setItems((arr) => {
+    const j = i + dir; if (j < 0 || j >= arr.length) return arr;
+    const a = [...arr]; [a[i], a[j]] = [a[j], a[i]]; return a;
+  });
+  const removeItem = (id) => setItems((arr) => (arr.length > 1 ? arr.filter((x) => x.id !== id) : arr));
+  const add = () => { const n = draft.trim(); if (!n) return; setItems((arr) => [...arr, { id: "n" + Date.now().toString(36), name: n, orig: null }]); setDraft(""); };
+  const save = () => {
+    const names = []; const renameMap = {};
+    items.forEach((x) => {
+      const n = x.name.trim();
+      if (!n || names.includes(n)) return;
+      names.push(n);
+      if (x.orig && x.orig !== n) renameMap[x.orig] = n;
+    });
+    if (names.length) onSave(names, renameMap);
+  };
+  const inputStyle = { flex: 1, fontFamily: FONT, fontSize: 13, padding: "8px 10px", border: `1px solid ${C.line}`, borderRadius: 6, background: "#fff", color: C.ink, minWidth: 0 };
+  const iconBtn = (disabled) => ({ fontFamily: FONT, fontSize: 13, width: 30, height: 32, border: `1px solid ${C.line}`, borderRadius: 6, background: "#fff", color: disabled ? "#C3CCD4" : C.ink, cursor: disabled ? "default" : "pointer", padding: 0 });
+  return (
+    <SidePanel onClose={onClose} z={70} width={420}>
+      <div style={{ fontFamily: FONT, padding: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 4 }}>Edit stages — {p.label}</div>
+        <div style={{ fontSize: 12, color: C.slate, marginBottom: 14 }}>Rename, reorder, add, or remove. Records in a removed stage move to the first stage. The last stage is treated as “done”.</div>
+        {items.map((x, i) => (
+          <div key={x.id} style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center" }}>
+            <input value={x.name} onChange={(e) => rename(x.id, e.target.value)} style={inputStyle} aria-label={`Stage ${i + 1} name`} />
+            <button onClick={() => move(i, -1)} disabled={i === 0} style={iconBtn(i === 0)} aria-label="Move up">↑</button>
+            <button onClick={() => move(i, 1)} disabled={i === items.length - 1} style={iconBtn(i === items.length - 1)} aria-label="Move down">↓</button>
+            <button onClick={() => removeItem(x.id)} disabled={items.length <= 1} style={{ ...iconBtn(items.length <= 1), color: items.length <= 1 ? "#C3CCD4" : C.red }} aria-label="Remove stage">✕</button>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+          <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} placeholder="New stage name" style={inputStyle} />
+          <Btn small onClick={add}>Add</Btn>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+          <Btn tone="primary" onClick={save}>Save stages</Btn>
+          <Btn onClick={onClose}>Cancel</Btn>
+        </div>
+      </div>
+    </SidePanel>
+  );
+}
+
+function ScanImportModal({ state, onClose, onImport }) {
+  const loading = state === "loading";
+  const rows = loading ? [] : state.rows;
+  const [sel, setSel] = useState(null);
+  const selected = sel || Object.fromEntries(rows.map((r) => [r.id, true]));
+  const toggle = (id) => setSel({ ...selected, [id]: !selected[id] });
+  const chosen = rows.filter((r) => selected[r.id]);
+  const title = (r) => {
+    const b = r.data || {};
+    const bits = [b.make, b.model].filter((v) => v && v !== "Not listed").join(" ");
+    const reg = b.tail_number && b.tail_number !== "Not listed" ? b.tail_number : (b.serial_number && b.serial_number !== "Not listed" ? "SN " + b.serial_number : "");
+    return (bits || "Aircraft") + (reg ? " — " + reg : "");
+  };
+  return (
+    <SidePanel onClose={onClose} z={70} width={460}>
+      <div style={{ fontFamily: FONT, padding: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 4 }}>Import from brochure scanner</div>
+        <div style={{ fontSize: 12, color: C.slate, marginBottom: 14 }}>Aircraft sent over from the Brochure Extractor that haven’t been imported yet. Each arrives in the first pipeline stage with its brochure PDF attached.</div>
+        {loading && <div style={{ fontSize: 13, color: C.slate, padding: 20, textAlign: "center" }}>Checking the scanner…</div>}
+        {!loading && rows.length === 0 && (
+          <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 18, fontSize: 13, color: C.slate, textAlign: "center" }}>
+            Nothing waiting. In the Brochure Extractor, extract a PDF and press “Send to Tailbook”.
+          </div>
+        )}
+        {rows.map((r) => (
+          <label key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", marginBottom: 8, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!selected[r.id]} onChange={() => toggle(r.id)} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{title(r)}</div>
+              <div style={{ fontSize: 11, color: C.slate, fontFamily: MONO, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.source_file || "unknown file"} · {new Date(r.created_at).toLocaleDateString()}</div>
+            </div>
+          </label>
+        ))}
+        {!loading && rows.length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <Btn tone="primary" disabled={!chosen.length} onClick={() => onImport(chosen)}>Import {chosen.length || ""} aircraft</Btn>
+            <Btn onClick={onClose}>Cancel</Btn>
+          </div>
+        )}
+      </div>
+    </SidePanel>
+  );
+}
+
 function Tailbook() {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("aircraft");
   const [open, setOpen] = useState(null); // {type, id}
   const [adding, setAdding] = useState(false);
   const [managing, setManaging] = useState(false);
+  const [query, setQuery] = useState("");
+  const [editingStages, setEditingStages] = useState(false);
+  const [scanImport, setScanImport] = useState(null); // null | 'loading' | {rows}
+  const [toast, setToast] = useState(null);
+  const fileRef = useRef(null);
+  const toastTimer = useRef(null);
+  const showToast = (text, ok = true) => {
+    clearTimeout(toastTimer.current);
+    setToast({ text, ok });
+    toastTimer.current = setTimeout(() => setToast(null), 3500);
+  };
   const saveTimer = useRef(null);
   const latest = useRef(null);
   function dataRef() { return latest.current; }
@@ -1110,7 +1281,7 @@ function Tailbook() {
   const remove = (type) => (id) => { commit({ ...dataRef(), [type]: dataRef()[type].filter((r) => r.id !== id) }); setOpen(null); };
   const create = (type) => (vals) => {
     const id = `r${Date.now().toString(36)}`;
-    const rec = type === "contacts" ? { id, ...vals } : { id, stage: PIPELINES[type].stages[0], ...vals };
+    const rec = type === "contacts" ? { id, ...vals } : { id, stage: getStages(type, dataRef())[0], ...vals };
     commit({ ...dataRef(), [type]: [rec, ...dataRef()[type]] });
     setAdding(false);
   };
@@ -1163,6 +1334,113 @@ function Tailbook() {
     if (sale.dealId) log(sale.dealId, `Closed on ${PIPELINES.aircraft.title(aircraft)} ${aircraft.reg} (${sale.price || "undisclosed"})`);
     setOpen(null);
   };
+  const saveStages = (newStages, renameMap) => {
+    const d = dataRef();
+    const remap = (r) => {
+      let s = renameMap[r.stage] || r.stage;
+      if (!newStages.includes(s)) s = newStages[0];
+      return s === r.stage ? r : { ...r, stage: s };
+    };
+    commit({ ...d, stages: { ...d.stages, [tab]: newStages }, [tab]: d[tab].map(remap) });
+    setEditingStages(false);
+    showToast(`Stages updated for ${PIPELINES[tab].label}`);
+  };
+
+  const exportCSV = () => {
+    const isContacts = tab === "contacts";
+    const fields = isContacts ? CONTACT_FIELDS : orderedFields(tab, data);
+    const cols = isContacts ? fields : [{ k: "stage", label: "Stage" }, ...fields];
+    const rows = data[tab] || [];
+    downloadText(`tailbook_${tab}_${new Date().toISOString().slice(0, 10)}.csv`, toCSV(rows, cols));
+    showToast(`Exported ${rows.length} ${isContacts ? "contacts" : PIPELINES[tab].unitName + " rows"} to CSV`);
+  };
+  const importCSV = (file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const rows = parseCSV(String(reader.result));
+        if (rows.length < 2) throw new Error("no data rows found");
+        const isContacts = tab === "contacts";
+        const fields = isContacts ? CONTACT_FIELDS : getFields(tab, dataRef());
+        const headers = rows[0].map((h) => h.trim().toLowerCase());
+        const keyFor = headers.map((h) => {
+          if (h === "stage") return "stage";
+          const f = fields.find((fd) => fd.label.toLowerCase() === h || fd.k.toLowerCase() === h);
+          return f ? f.k : null;
+        });
+        if (!keyFor.some(Boolean)) throw new Error("no columns matched — use Export CSV as a template");
+        const stg = isContacts ? null : getStages(tab, dataRef());
+        const recs = rows.slice(1).filter((r) => r.some((c) => c && c.trim())).map((r, i) => {
+          const rec = { id: `r${Date.now().toString(36)}${i}` };
+          r.forEach((cell, ci) => { const k = keyFor[ci]; if (k && cell && cell.trim()) rec[k] = cell.trim(); });
+          if (!isContacts) rec.stage = stg.includes(rec.stage) ? rec.stage : stg[0];
+          return rec;
+        });
+        if (!recs.length) throw new Error("no usable rows");
+        commit({ ...dataRef(), [tab]: [...recs, ...dataRef()[tab]] });
+        showToast(`Imported ${recs.length} ${isContacts ? "contacts" : PIPELINES[tab].unitName + " records"} from ${file.name}`);
+      } catch (e) { showToast("Import failed: " + e.message, false); }
+    };
+    reader.onerror = () => showToast("Couldn't read that file", false);
+    reader.readAsText(file);
+  };
+
+  const openScanImport = async () => {
+    setScanImport("loading");
+    try {
+      const { data: rows, error } = await window._sb.from("brochure_imports")
+        .select("*").eq("imported", false).order("created_at", { ascending: false });
+      if (error) throw error;
+      setScanImport({ rows: rows || [] });
+    } catch (e) { showToast("Couldn't reach the scanner inbox: " + e.message, false); setScanImport(null); }
+  };
+  const importFromScanner = async (rows) => {
+    const d = dataRef();
+    const stg = getStages("aircraft", d);
+    const clean = (v) => (!v || v === "Not listed" || v === "N/A" ? "" : String(v));
+    const recs = rows.map((row, i) => {
+      const b = row.data || {};
+      const rec = {
+        id: `r${Date.now().toString(36)}${i}`, stage: stg[0],
+        reg: clean(b.tail_number), make: clean(b.make), model: clean(b.model),
+        year: clean(b.year), serial: clean(b.serial_number), ttaf: clean(b.aftt),
+        pdfPath: row.pdf_path || "", sourceFile: row.source_file || "",
+      };
+      Object.keys(rec).forEach((k) => { if (rec[k] === "") delete rec[k]; });
+      return rec;
+    });
+    const ts = new Date().toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    const acts = { ...d.activity };
+    recs.forEach((r) => { acts[r.id] = [{ ts, text: `Imported from brochure scanner${r.sourceFile ? " — " + r.sourceFile : ""}` }]; });
+    commit({ ...d, aircraft: [...recs, ...d.aircraft], activity: acts });
+    setScanImport(null);
+    setTab("aircraft");
+    showToast(`Imported ${recs.length} aircraft from the scanner`);
+    try { await window._sb.from("brochure_imports").update({ imported: true }).in("id", rows.map((r) => r.id)); }
+    catch (e) { console.error("Couldn't mark scanner rows imported", e); }
+  };
+
+  const searchResults = (() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const out = [];
+    const scan = (type, recs, titleFn, label) => {
+      for (const r of recs) {
+        if (out.length >= 14) return;
+        const hay = Object.values(r).filter((v) => typeof v === "string").join(" \u0000 ").toLowerCase();
+        if (hay.includes(q)) out.push({ type, r, title: titleFn(r) || "—", label });
+      }
+    };
+    PIPE_KEYS.forEach((t) => scan(t, data[t] || [], PIPELINES[t].title, PIPELINES[t].label));
+    scan("contacts", data.contacts || [], (r) => r.name, "Contact");
+    return out;
+  })();
+  const goToResult = (res) => {
+    setTab(res.type);
+    if (res.type !== "contacts") setOpen({ type: res.type, id: res.r.id });
+    setQuery("");
+  };
+
   const setStage = (type) => (r, stage) => {
     if (!stage || stage === r.stage) return;
     update(type)({ ...r, stage });
@@ -1173,7 +1451,7 @@ function Tailbook() {
   };
   const relist = (aircraft) => {
     const d = dataRef();
-    const updated = { ...aircraft, offMarket: false, stage: PIPELINES.aircraft.stages[0] };
+    const updated = { ...aircraft, offMarket: false, stage: getStages("aircraft", d)[0] };
     commit({ ...d, aircraft: d.aircraft.map((a) => (a.id === aircraft.id ? updated : a)) });
     log(aircraft.id, "Re-listed — new sales cycle started");
   };
@@ -1190,11 +1468,44 @@ function Tailbook() {
         @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
       `}</style>
 
-      {/* identity bar */}
-      <div style={{ background: C.ink, padding: "14px 16px 12px", fontFamily: FONT }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+      {/* identity bar + global search */}
+      <div style={{ background: C.ink, padding: "12px 16px", fontFamily: FONT, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginRight: "auto" }}>
           <span style={{ color: "#fff", fontSize: 19, fontWeight: 700, letterSpacing: "0.02em" }}>TAILBOOK</span>
           <span style={{ color: "#8FA0B1", fontFamily: MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" }}>Business aviation CRM</span>
+        </div>
+        <div style={{ position: "relative", width: 280, maxWidth: "60vw" }}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") setQuery(""); if (e.key === "Enter" && searchResults.length) goToResult(searchResults[0]); }}
+            placeholder="Search aircraft, deals, charter, contacts…"
+            aria-label="Global search"
+            style={{
+              width: "100%", boxSizing: "border-box", fontFamily: FONT, fontSize: 13,
+              padding: "8px 12px", borderRadius: 7, border: "1px solid #2C3B4A",
+              background: "#1F2D3B", color: "#EDF0F3", outline: "none",
+            }}
+          />
+          {query.trim() && (
+            <div style={{
+              position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 80,
+              background: "#fff", border: `1px solid ${C.line}`, borderRadius: 8,
+              maxHeight: 340, overflowY: "auto", boxShadow: "0 12px 30px rgba(21,32,43,0.3)",
+            }}>
+              {searchResults.length === 0 && <div style={{ padding: "12px 14px", fontSize: 12, color: C.slate }}>No matches for “{query.trim()}”</div>}
+              {searchResults.map((res) => (
+                <button key={res.type + res.r.id} onClick={() => goToResult(res)} style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, width: "100%",
+                  padding: "10px 14px", border: "none", borderBottom: `1px solid #F0F2F5`,
+                  background: "transparent", cursor: "pointer", fontFamily: FONT, textAlign: "left",
+                }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{res.title}</span>
+                  <span style={{ fontSize: 10, fontFamily: MONO, color: C.slate, textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>{res.label}{res.r.stage ? " · " + res.r.stage : ""}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1215,8 +1526,8 @@ function Tailbook() {
       </div>
 
       {/* view toolbar */}
-      {tab !== "contacts" && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px 0" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 14px 0", flexWrap: "wrap" }}>
+        {tab !== "contacts" ? (
           <div style={{ display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 7, overflow: "hidden", background: C.panel }}>
             {(tab === "aircraft" ? ["board", "list", "registry"] : ["board", "list"]).map((v) => {
               const on = data.prefs.view[tab] === v;
@@ -1228,9 +1539,17 @@ function Tailbook() {
               );
             })}
           </div>
-          {data.prefs.view[tab] === "list" && <Btn small onClick={() => setManaging(true)}>Columns ⚙</Btn>}
+        ) : <div />}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {tab === "aircraft" && <Btn small onClick={openScanImport}>⇪ From scanner</Btn>}
+          {tab !== "contacts" && <Btn small onClick={() => setEditingStages(true)}>Stages ✎</Btn>}
+          <Btn small onClick={() => fileRef.current && fileRef.current.click()}>⬆ Import CSV</Btn>
+          <Btn small onClick={exportCSV}>⬇ Export CSV</Btn>
+          {tab !== "contacts" && data.prefs.view[tab] === "list" && <Btn small onClick={() => setManaging(true)}>Columns ⚙</Btn>}
         </div>
-      )}
+      </div>
+      <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: "none" }}
+        onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) importCSV(f); e.target.value = ""; }} />
 
       {/* body */}
       {tab === "contacts"
@@ -1238,8 +1557,8 @@ function Tailbook() {
         : tab === "aircraft" && data.prefs.view.aircraft === "registry"
           ? <Registry data={data} onOpen={(type, id) => setOpen({ type, id })} onRelist={relist} />
           : data.prefs.view[tab] === "list"
-            ? <ListView type={tab} records={tab === "aircraft" ? data.aircraft.filter((r) => !r.offMarket) : data[tab]} data={data} onOpen={(type, id) => setOpen({ type, id })} onCellEdit={cellEdit(tab)} onStage={setStage(tab)} />
-            : <Board type={tab} records={tab === "aircraft" ? data.aircraft.filter((r) => !r.offMarket) : data[tab]} onOpen={(type, id) => setOpen({ type, id })} onStage={setStage(tab)} />}
+            ? <ListView type={tab} records={tab === "aircraft" ? data.aircraft.filter((r) => !r.offMarket) : data[tab]} stages={getStages(tab, data)} data={data} onOpen={(type, id) => setOpen({ type, id })} onCellEdit={cellEdit(tab)} onStage={setStage(tab)} />
+            : <Board type={tab} records={tab === "aircraft" ? data.aircraft.filter((r) => !r.offMarket) : data[tab]} stages={getStages(tab, data)} onOpen={(type, id) => setOpen({ type, id })} onStage={setStage(tab)} />}
 
       {/* add */}
       <button onClick={() => setAdding(true)} aria-label="Add record" style={{
@@ -1253,11 +1572,26 @@ function Tailbook() {
         <ColumnManager type={tab} data={data} onClose={() => setManaging(false)}
           onToggle={toggleCol} onMove={moveCol} onAddField={addField} onRemoveField={removeField} />
       )}
+      {editingStages && tab !== "contacts" && (
+        <StageEditor type={tab} stages={getStages(tab, data)} onClose={() => setEditingStages(false)} onSave={saveStages} />
+      )}
+      {scanImport && (
+        <ScanImportModal state={scanImport} onClose={() => setScanImport(null)} onImport={importFromScanner} />
+      )}
+      {toast && (
+        <div role="status" style={{
+          position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)",
+          background: toast.ok ? C.ink : C.red, color: "#fff", fontFamily: FONT, fontSize: 13,
+          padding: "10px 18px", borderRadius: 8, zIndex: 120, maxWidth: "86vw",
+          boxShadow: "0 8px 22px rgba(21,32,43,0.35)",
+        }}>{toast.text}</div>
+      )}
       {openRecord && (
         <Detail
           type={open.type}
           record={openRecord}
           fields={getFields(open.type, data)}
+          stages={getStages(open.type, data)}
           data={data}
           activity={data.activity}
           onClose={() => setOpen(null)}
