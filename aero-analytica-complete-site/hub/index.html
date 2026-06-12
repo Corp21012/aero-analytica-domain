@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aero Analytica — Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.1/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://rabjbhtoufrrfznpztjt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_q-VtpKa9-S_uTXU3ZmrLDw_6dwIz7Ch';
+window._sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+window._authReady = (async () => {
+  const { data: { session } } = await window._sb.auth.getSession();
+  if (!session) { window.location.href = '/'; return null; }
+  window._uid = session.user.id;
+  window._userEmail = session.user.email;
+  document.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('user-email');
+    if (el) el.textContent = session.user.email;
+  });
+  return session;
+})();
+async function signOut() {
+  await window._sb.auth.signOut();
+  window.location.href = '/';
+}
+</script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Helvetica,Arial,sans-serif;background:#2e2e2e;color:#c8c8c8;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+  .top{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:flex-end;gap:4px;padding:10px 16px}
+  .top span{font-size:11px;color:#555;letter-spacing:.3px;margin-right:8px}
+  .top a{font-size:12px;color:#888;cursor:pointer;text-decoration:none;padding:6px 12px;border:1px solid #444;border-radius:7px;background:#353535;transition:background .15s}
+  .top a:hover{background:#444;color:#bbb}
+  .logo{text-align:center;margin-bottom:36px}
+  .logo h1{font-size:24px;font-weight:600;color:#d8d8d8;letter-spacing:.5px}
+  .logo p{font-size:12px;color:#666;margin-top:4px;text-transform:uppercase;letter-spacing:.8px}
+  .divider{width:40px;height:1px;background:#444;margin:16px auto 0}
+  .cards{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;max-width:760px}
+  .dest{width:340px;border-radius:14px;padding:30px 28px;cursor:pointer;text-decoration:none;display:block;transition:transform .15s,box-shadow .15s;border:1px solid #444}
+  .dest:hover{transform:translateY(-3px)}
+  .dest h2{font-size:18px;font-weight:600;margin-bottom:8px;letter-spacing:.3px}
+  .dest p{font-size:13px;line-height:1.5}
+  .dest .tag{display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.8px;padding:3px 8px;border-radius:5px;margin-bottom:14px}
+  .toolkit{background:#353535}
+  .toolkit:hover{box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .toolkit h2{color:#d8d8d8}
+  .toolkit p{color:#888}
+  .toolkit .tag{background:#2a2a2a;color:#777;border:1px solid #4a4a4a}
+  .tailbook{background:#EDF0F3;border-color:#D8DEE5;font-family:'B612',system-ui,sans-serif}
+  .tailbook:hover{box-shadow:0 8px 24px rgba(222,144,32,.25)}
+  .tailbook h2{color:#15202B}
+  .tailbook p{color:#4C5A68}
+  .tailbook .tag{background:#FBF1DF;color:#DE9020;border:1px solid #DE9020}
+  /* settings modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:center;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal{background:#353535;border:1px solid #444;border-radius:12px;padding:28px;width:100%;max-width:340px}
+  .modal h2{font-size:15px;font-weight:600;color:#d8d8d8;margin-bottom:18px}
+  .modal .field{margin-bottom:12px}
+  .modal .field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:6px}
+  .modal .field input{width:100%;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:7px;padding:9px 11px;color:#c8c8c8;font-size:13px;font-family:Helvetica,Arial,sans-serif}
+  .modal .field input:focus{outline:none;border-color:#777}
+  .modal-btns{display:flex;gap:8px;margin-top:14px}
+  .modal-btns button{flex:1;padding:9px;border-radius:7px;border:none;font-size:13px;font-family:Helvetica,Arial,sans-serif;cursor:pointer}
+  .modal-save{background:#505050;color:#e0e0e0}
+  .modal-save:hover:not(:disabled){background:#5c5c5c}
+  .modal-cancel{background:transparent;color:#888;border:1px solid #444 !important}
+  .modal-msg{font-size:12px;margin-top:10px;text-align:center;min-height:16px}
+</style>
+</head>
+<body>
+<div class="top">
+  <span id="user-email"></span>
+  <a onclick="openSettings()" title="Settings">&#9881;</a>
+  <a onclick="signOut()" title="Sign out">&#9211; Sign out</a>
+</div>
+<div class="logo">
+  <h1>Aero Analytica</h1>
+  <p>Where to?</p>
+  <div class="divider"></div>
+</div>
+<div class="cards">
+  <a class="dest toolkit" href="/vref/">
+    <span class="tag">Extraction Suite</span>
+    <h2>Tool Kit</h2>
+    <p>VREF valuations, brochure extractor, data dashboard, and the performance calculator.</p>
+  </a>
+  <a class="dest tailbook" href="/tailbook/">
+    <span class="tag">CRM</span>
+    <h2>Tailbook</h2>
+    <p>Pipelines for aircraft, deals, and charter — contacts, stages, and activity in one place.</p>
+  </a>
+</div>
+
+<div class="modal-overlay" id="settings-modal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <h2>&#9881; Settings</h2>
+    <div class="field">
+      <label>New Password</label>
+      <input type="password" id="cp-new" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Confirm Password</label>
+      <input type="password" id="cp-confirm" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Anthropic API Key <span style="text-transform:none;letter-spacing:0">(optional — Tailbook AI features)</span></label>
+      <input type="password" id="cp-apikey" placeholder="sk-ant-...">
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeSettings()">Cancel</button>
+      <button class="modal-save" id="cp-save" onclick="saveSettings()">Save</button>
+    </div>
+    <div class="modal-msg" id="cp-msg"></div>
+  </div>
+</div>
+<script>
+function openSettings() {
+  document.getElementById('settings-modal').classList.add('open');
+  document.getElementById('cp-new').value = '';
+  document.getElementById('cp-confirm').value = '';
+  document.getElementById('cp-apikey').value = localStorage.getItem('tb_anthropic_key') || '';
+  document.getElementById('cp-msg').textContent = '';
+}
+function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('settings-modal').classList.contains('open')) return;
+  if (e.key === 'Escape') closeSettings();
+  if (e.key === 'Enter') saveSettings();
+});
+async function saveSettings() {
+  const pw1 = document.getElementById('cp-new').value;
+  const pw2 = document.getElementById('cp-confirm').value;
+  const key = document.getElementById('cp-apikey').value.trim();
+  const msgEl = document.getElementById('cp-msg');
+  const btn = document.getElementById('cp-save');
+  msgEl.style.color = '#C2402A';
+
+  if (key) localStorage.setItem('tb_anthropic_key', key);
+  else localStorage.removeItem('tb_anthropic_key');
+
+  if (pw1 || pw2) {
+    if (pw1.length < 8) { msgEl.textContent = 'Password must be at least 8 characters.'; return; }
+    if (pw1 !== pw2)    { msgEl.textContent = 'Passwords do not match.'; return; }
+    btn.disabled = true; btn.textContent = 'Saving\u2026';
+    const { error } = await window._sb.auth.updateUser({ password: pw1 });
+    btn.disabled = false; btn.textContent = 'Save';
+    if (error) { msgEl.textContent = error.message; return; }
+  }
+  msgEl.style.color = '#2F7D5B';
+  msgEl.textContent = 'Saved.';
+  setTimeout(closeSettings, 900);
+}
+</script>
+</body>
+</html>
