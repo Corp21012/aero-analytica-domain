@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aero Analytica — Acquisition Brief</title>
+<link href="https://fonts.googleapis.com/css2?family=B612:ital,wght@0,400;0,700&family=B612+Mono&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'B612',system-ui,sans-serif;background:#2e2e2e;color:#c8c8c8;padding:0 0 60px}
+  .wrap{max-width:760px;margin:0 auto;padding:0 18px}
+  .mast{border-bottom:1px solid #444;padding:26px 0 20px;margin-bottom:26px}
+  .brand{font-size:13px;font-weight:700;letter-spacing:.14em;color:#d8d8d8;text-transform:uppercase}
+  .brand small{color:#DE9020;font-family:'B612 Mono',monospace;font-weight:400;font-size:10px;margin-left:10px;letter-spacing:.08em}
+  .prepared{margin-top:14px;font-size:13px;color:#8f8f8f}
+  .prepared b{color:#d8d8d8;font-weight:700}
+  h1{font-size:24px;color:#d8d8d8;font-weight:700;margin-bottom:10px}
+  .specs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:26px}
+  .chip{background:#353535;border:1px solid #444;border-radius:6px;padding:6px 11px;font-size:12px;color:#999}
+  .chip b{color:#d8d8d8;font-family:'B612 Mono',monospace;font-weight:700;margin-left:6px}
+  .panel{background:#353535;border:1px solid #444;border-radius:10px;padding:18px;margin-bottom:18px}
+  .panel h2{font-size:11px;font-weight:700;color:#8f8f8f;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px}
+  .valgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+  .val{background:#2a2a2a;border:1px solid #444;border-radius:8px;padding:12px}
+  .val .k{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.05em}
+  .val .v{font-size:19px;color:#d8d8d8;font-family:'B612 Mono',monospace;margin-top:4px;font-weight:700}
+  .val.accent .v{color:#DE9020}
+  .note{font-size:13px;color:#aaa;line-height:1.6;margin-top:12px;border-left:3px solid #DE9020;padding-left:12px}
+  .sliderrow{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+  .sliderrow .hrs{font-family:'B612 Mono',monospace;font-size:20px;color:#DE9020;font-weight:700;min-width:130px}
+  input[type=range]{accent-color:#DE9020;flex:1}
+  .row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #404040;font-size:13px}
+  .row:last-child{border-bottom:none}
+  .row label{color:#aaa}
+  .row .v{font-family:'B612 Mono',monospace;color:#d8d8d8;text-align:right}
+  .row .neg{color:#6abf7a}
+  .grand{background:#2a2a2a;border:1px solid #DE9020;border-radius:8px;padding:11px 12px;margin-top:10px}
+  .grand .v{color:#DE9020;font-weight:700;font-size:16px}
+  .metrics{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .metric{background:#2a2a2a;border:1px solid #444;border-radius:8px;padding:10px 12px;flex:1;min-width:130px}
+  .metric .k{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.05em}
+  .metric .v{font-size:16px;color:#d8d8d8;font-family:'B612 Mono',monospace;margin-top:3px;font-weight:700}
+  .foot{font-size:11px;color:#666;line-height:1.6;margin-top:30px;border-top:1px solid #444;padding-top:16px}
+  .err{max-width:560px;margin:80px auto;text-align:center;color:#8f8f8f;font-size:14px;padding:0 18px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="wrap" id="report" style="display:none">
+  <div class="mast">
+    <div class="brand">Aero Analytica <small>ACQUISITION BRIEF</small></div>
+    <div class="prepared" id="prepared"></div>
+  </div>
+  <h1 id="acName"></h1>
+  <div class="specs" id="specs"></div>
+  <div class="panel" id="valPanel" style="display:none">
+    <h2>Market position</h2>
+    <div class="valgrid" id="valGrid"></div>
+    <div class="note" id="brokerNote" style="display:none"></div>
+  </div>
+  <div class="panel">
+    <h2>Annual cost of ownership — drag to your expected flying</h2>
+    <div class="sliderrow">
+      <span class="hrs" id="hrsOut"></span>
+      <input type="range" id="hrsSlider" min="100" max="800" step="25" oninput="recalc()">
+    </div>
+    <div id="statement"></div>
+    <div class="metrics" id="metrics"></div>
+  </div>
+  <div class="panel" id="bookPanel" style="display:none">
+    <h2 id="bookTitle">Book value reference</h2>
+    <div class="valgrid" id="bookGrid"></div>
+    <div id="bookCurve" style="margin-top:16px"></div>
+    <div id="bookBasis" style="font-size:11px;color:#666;margin-top:10px"></div>
+  </div>
+  <div class="foot">Prepared by Aero Analytica. Operating figures derive from industry baseline data adjusted with broker assumptions; valuation figures reflect published book values and the current asking price. This brief is for discussion purposes and is not an appraisal, offer, or quote.</div>
+</div>
+<div class="err" id="err" style="display:none">This report link is not available. Please contact your Aero Analytica representative.</div>
+
+<script>
+const fmt = (n) => n == null || isNaN(n) ? "—" : "$" + Math.round(n).toLocaleString();
+let CFG = null;
+
+function renderReport(data) {
+  CFG = data.config;
+  document.getElementById("report").style.display = "block";
+  const who = [data.principal_name, data.client_company].filter(Boolean).join(" · ");
+  document.getElementById("prepared").innerHTML = who
+    ? "Prepared for <b>" + who.replace(/</g,"&lt;") + "</b> — " + new Date(data.created_at).toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"})
+    : new Date(data.created_at).toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"});
+  document.getElementById("acName").textContent = data.aircraft_name;
+  const sp = CFG.specs || {};
+  const chips = [["Cruise", sp.cruise ? sp.cruise + " kts" : null],["Range", sp.range ? Number(sp.range).toLocaleString() + " nm" : null],["Passengers", sp.pax],["Ceiling", sp.ceiling ? Number(sp.ceiling).toLocaleString() + " ft" : null]];
+  document.getElementById("specs").innerHTML = chips.filter(([,v]) => v != null).map(([k,v]) => '<span class="chip">'+k+'<b>'+v+'</b></span>').join("");
+  const ask = CFG.askPrice, book = CFG.bookValue;
+  if (ask || book) {
+    document.getElementById("valPanel").style.display = "block";
+    let cells = "";
+    if (ask) cells += '<div class="val"><div class="k">Asking price</div><div class="v">'+fmt(ask)+'</div></div>';
+    if (book) cells += '<div class="val"><div class="k">VREF book value</div><div class="v">'+fmt(book)+'</div></div>';
+    if (ask && book) {
+      const d = (ask - book) / book * 100;
+      cells += '<div class="val accent"><div class="k">'+(d >= 0 ? "Premium to book" : "Discount to book")+'</div><div class="v">'+Math.abs(d).toFixed(1)+'%</div></div>';
+    }
+    document.getElementById("valGrid").innerHTML = cells;
+    if (CFG.note) { const n = document.getElementById("brokerNote"); n.style.display = "block"; n.textContent = CFG.note; }
+  }
+  if (CFG.vref && CFG.vref.retail) renderBookPanel(CFG.vref);
+  const s = document.getElementById("hrsSlider");
+  s.value = CFG.ownerHrs || 300;
+  recalc();
+}
+
+function renderBookPanel(v) {
+  document.getElementById("bookPanel").style.display = "block";
+  document.getElementById("bookTitle").textContent = "Book value reference — VREF " + (v.quarter || "");
+  let cells = '<div class="val"><div class="k">' + v.year + " " + (v.model || "") + ' retail</div><div class="v">' + fmt(v.retail) + "</div></div>";
+  if (v.wholesale) cells += '<div class="val"><div class="k">Wholesale</div><div class="v">' + fmt(v.wholesale) + "</div></div>";
+  if (v.estDepPct != null) cells += '<div class="val accent"><div class="k">Est. annual depreciation</div><div class="v">' + v.estDepPct + "%</div></div>";
+  document.getElementById("bookGrid").innerHTML = cells;
+  if (v.curve && v.curve.length >= 3) {
+    const W = 640, H = 130, P = 34;
+    const yrs = v.curve.map((c) => c.year), vals = v.curve.map((c) => c.retail);
+    const x = (yr) => P + (yr - yrs[0]) / Math.max(1, yrs[yrs.length - 1] - yrs[0]) * (W - 2 * P);
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    const y = (val) => H - 22 - (val - lo) / Math.max(1, hi - lo) * (H - 50);
+    const pts = v.curve.map((c) => x(c.year).toFixed(1) + "," + y(c.retail).toFixed(1)).join(" ");
+    const selPt = v.curve.find((c) => c.year === v.year);
+    let svg = '<svg width="100%" viewBox="0 0 ' + W + " " + H + '" role="img"><title>Value by year model</title>';
+    svg += '<polyline points="' + pts + '" fill="none" stroke="#DE9020" stroke-width="2"/>';
+    v.curve.forEach((c) => { svg += '<circle cx="' + x(c.year).toFixed(1) + '" cy="' + y(c.retail).toFixed(1) + '" r="2.5" fill="#888"/>'; });
+    if (selPt) {
+      svg += '<circle cx="' + x(selPt.year).toFixed(1) + '" cy="' + y(selPt.retail).toFixed(1) + '" r="5" fill="#DE9020"/>';
+      svg += '<text x="' + x(selPt.year).toFixed(1) + '" y="' + (y(selPt.retail) - 10).toFixed(1) + '" text-anchor="middle" font-family="B612 Mono,monospace" font-size="11" fill="#DE9020">' + selPt.year + "</text>";
+    }
+    svg += '<text x="' + P + '" y="' + (H - 4) + '" font-family="B612 Mono,monospace" font-size="10" fill="#777">' + yrs[0] + "</text>";
+    svg += '<text x="' + (W - P) + '" y="' + (H - 4) + '" text-anchor="end" font-family="B612 Mono,monospace" font-size="10" fill="#777">' + yrs[yrs.length - 1] + "</text>";
+    svg += "</svg>";
+    document.getElementById("bookCurve").innerHTML = svg;
+    document.getElementById("bookBasis").textContent = "Retail book value across " + v.curve.length + " year models of the " + (v.model || "type") + ", per VREF " + (v.quarter || "") + ". Highlighted point is the subject year model. Depreciation estimated from the slope of this curve.";
+  }
+}
+
+function recalc() {
+  const hrs = parseInt(document.getElementById("hrsSlider").value, 10);
+  document.getElementById("hrsOut").textContent = hrs + " hrs/yr";
+  const varHr = (CFG.gph||0)*(CFG.fuelPrice||0) + (CFG.mlhrs||0)*(CFG.laborRate||0) +
+    Object.values(CFG.v||{}).reduce((a,b)=>a+(b||0),0);
+  const fixed = Object.values(CFG.f||{}).reduce((a,b)=>a+(b||0),0);
+  const dep = CFG.useDep ? (CFG.acq||0)*(CFG.depPct||0)/100 : 0;
+  const showCh = CFG.showCharter && (CFG.charterHrs||0) > 0;
+  const ch = showCh ? CFG.charterHrs : 0;
+  const revNet = showCh ? (CFG.charterRate||0)*ch*(1-(CFG.comm||0)/100) : 0;
+  const gross = fixed + varHr*(hrs+ch) + dep;
+  const net = gross - revNet;
+  let rows = '<div class="row"><label>Fixed annual costs</label><span class="v">'+fmt(fixed)+'</span></div>';
+  rows += '<div class="row"><label>Direct operating cost — '+hrs+' hrs &times; '+fmt(varHr)+'/hr</label><span class="v">'+fmt(varHr*hrs)+'</span></div>';
+  if (showCh) rows += '<div class="row"><label>Direct operating cost — charter, '+ch+' hrs</label><span class="v">'+fmt(varHr*ch)+'</span></div>';
+  if (dep > 0) rows += '<div class="row"><label>Market depreciation ('+CFG.depPct+'%/yr)</label><span class="v">'+fmt(dep)+'</span></div>';
+  if (showCh) rows += '<div class="row"><label>Charter revenue, net of management</label><span class="v neg">&minus;'+fmt(revNet)+'</span></div>';
+  rows += '<div class="row grand"><label style="color:#d8d8d8;font-weight:700">Net annual cost</label><span class="v">'+fmt(net)+'</span></div>';
+  document.getElementById("statement").innerHTML = rows;
+  const speed = CFG.avgSpeed || 400;
+  document.getElementById("metrics").innerHTML =
+    '<div class="metric"><div class="k">Per flight hour</div><div class="v">'+(hrs>0?fmt(net/hrs):"—")+'</div></div>' +
+    '<div class="metric"><div class="k">Per nautical mile</div><div class="v">'+(hrs>0?fmt(net/(hrs*speed)):"—")+'</div></div>' +
+    '<div class="metric"><div class="k">Approx. annual distance</div><div class="v">'+(hrs*speed).toLocaleString()+' nm</div></div>';
+}
+
+(async () => {
+  const token = new URLSearchParams(location.search).get("t");
+  if (!token) { document.getElementById("err").style.display = "block"; return; }
+  try {
+    const sb = supabase.createClient('https://rabjbhtoufrrfznpztjt.supabase.co', 'sb_publishable_q-VtpKa9-S_uTXU3ZmrLDw_6dwIz7Ch');
+    const { data, error } = await sb.rpc("get_report", { t: token });
+    if (error || !data) throw new Error(error ? error.message : "not found");
+    renderReport(data);
+    sb.rpc("log_report_view", { t: token }).then(()=>{},()=>{});
+  } catch (e) {
+    document.getElementById("err").style.display = "block";
+  }
+})();
+</script>
+</body>
+</html>
