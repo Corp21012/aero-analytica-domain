@@ -4,47 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Aero Analytica Tool Kit</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
-// --- Push to Supabase ---
-async function pushToSupabase() {
-  const url  = document.getElementById('sbUrl').value.trim();
-  const key  = document.getElementById('sbKey').value.trim();
-  const qtr  = document.getElementById('sbQtr').value.trim();
-  const res  = document.getElementById('push-result');
-
-  if (!url || !key) { res.className='push-result push-err'; res.textContent='Enter Supabase URL and anon key first.'; return; }
-  if (!qtr)         { res.className='push-result push-err'; res.textContent='Enter a report quarter (e.g. 2026-Q2).'; return; }
-  if (!allRows.length) { res.className='push-result push-err'; res.textContent='No data to push — extract PDFs first.'; return; }
-
-  res.className='push-result'; res.textContent='Pushing…';
-  document.getElementById('pushBtn').disabled = true;
-
-  const payload = allRows.map(r => ({ ...r, report_quarter: qtr }));
-
-  try {
-    const resp = await fetch(`${url}/rest/v1/vref_valuations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': key,
-        'Authorization': `Bearer ${key}`,
-        'Prefer': 'resolution=merge-duplicates',
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err?.message || err?.error || `HTTP ${resp.status}`);
-    }
-    res.className='push-result push-ok';
-    res.textContent=`✓ ${payload.length} rows pushed to Supabase for quarter ${qtr}`;
-  } catch(e) {
-    res.className='push-result push-err';
-    res.textContent=`Push failed: ${e.message}`;
-  }
-  document.getElementById('pushBtn').disabled = false;
-}
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:Helvetica,Arial,sans-serif;font-size:14px;background:#2e2e2e;color:#c8c8c8;padding:24px}
@@ -173,12 +133,9 @@ async function signOut() {
   </div>
 </nav>
 <div class="sbbar">
-  <label>Supabase URL</label>
-  <input class="url" id="sbUrl" placeholder="https://xxxx.supabase.co" value="https://rabjbhtoufrrfznpztjt.supabase.co">
-  <label>Anon Key</label>
-  <input class="key" id="sbKey" placeholder="sb_publishable_..." type="password">
-  <label>Quarter</label>
+  <label>Report Quarter</label>
   <input class="qtr" id="sbQtr" placeholder="2026-Q2" value="2026-Q2">
+  <span style="font-size:11px;color:#666;letter-spacing:.3px">Push uses your signed-in account &mdash; no keys needed.</span>
 </div>
 <p class="sub" style="margin-top:-10px">VREF Fleet Overview — extracts all valuation rows locally, no API needed.</p>
 
@@ -505,13 +462,10 @@ function exportCSV() {
 
 // --- Push to Supabase ---
 async function pushToSupabase() {
-  const url  = document.getElementById('sbUrl').value.trim();
-  const key  = document.getElementById('sbKey').value.trim();
-  const qtr  = document.getElementById('sbQtr').value.trim();
-  const res  = document.getElementById('push-result');
+  const qtr = document.getElementById('sbQtr').value.trim();
+  const res = document.getElementById('push-result');
 
-  if (!url || !key) { res.className='push-result push-err'; res.textContent='Enter Supabase URL and anon key first.'; return; }
-  if (!qtr)         { res.className='push-result push-err'; res.textContent='Enter a report quarter (e.g. 2026-Q2).'; return; }
+  if (!qtr)            { res.className='push-result push-err'; res.textContent='Enter a report quarter (e.g. 2026-Q2).'; return; }
   if (!allRows.length) { res.className='push-result push-err'; res.textContent='No data to push — extract PDFs first.'; return; }
 
   res.className='push-result'; res.textContent='Pushing…';
@@ -520,22 +474,12 @@ async function pushToSupabase() {
   const payload = allRows.map(r => ({ ...r, report_quarter: qtr }));
 
   try {
-    const resp = await fetch(`${url}/rest/v1/vref_valuations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': key,
-        'Authorization': `Bearer ${key}`,
-        'Prefer': 'resolution=merge-duplicates',
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err?.message || err?.error || `HTTP ${resp.status}`);
-    }
+    const { error } = await sb
+      .from('vref_valuations')
+      .upsert(payload, { onConflict: 'model,model_year,report_quarter' });
+    if (error) throw new Error(error.message);
     res.className='push-result push-ok';
-    res.textContent=`✓ ${payload.length} rows pushed to Supabase for quarter ${qtr}`;
+    res.textContent=`✓ ${payload.length} rows pushed for quarter ${qtr}`;
   } catch(e) {
     res.className='push-result push-err';
     res.textContent=`Push failed: ${e.message}`;
