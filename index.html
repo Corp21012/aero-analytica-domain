@@ -64,6 +64,21 @@
     <div id="reset-msg" class="err"></div>
     <div class="reset-back" onclick="showLogin()">← Back to sign in</div>
   </div>
+
+  <!-- Set / update password form (shown after invite or reset link) -->
+  <div id="setpw-form" style="display:none">
+    <p style="font-size:13px;color:#999;text-align:center;margin-bottom:18px">Welcome — choose a password for your account.</p>
+    <div class="field">
+      <label>New Password</label>
+      <input type="password" id="new-password" placeholder="••••••••" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Confirm Password</label>
+      <input type="password" id="confirm-password" placeholder="••••••••" autocomplete="new-password">
+    </div>
+    <button class="btn" id="setpwBtn" onclick="setPassword()">Set Password</button>
+    <div id="setpw-msg" class="err"></div>
+  </div>
 </div>
 
 <script>
@@ -72,8 +87,31 @@ const SUPABASE_KEY = 'sb_publishable_q-VtpKa9-S_uTXU3ZmrLDw_6dwIz7Ch';
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// If already logged in, go straight to the tool
+// Capture the URL hash BEFORE supabase-js consumes it
+const startupHash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+const linkType    = startupHash.get('type');           // 'invite' | 'recovery' | null
+const linkError   = startupHash.get('error_description') || startupHash.get('error');
+
+// Show expired/invalid link errors from Supabase redirects
+if (linkError) {
+  document.getElementById('login-err').textContent =
+    startupHash.get('error_code') === 'otp_expired'
+      ? 'That link has expired. Use "Forgot password?" to get a new one.'
+      : decodeURIComponent(linkError).replace(/\+/g, ' ');
+}
+
+// When arriving via an invite or password-reset link, show the set-password
+// form instead of redirecting. Otherwise, logged-in users go to the tool.
+if (linkType === 'invite' || linkType === 'recovery') {
+  showSetPassword();
+}
+
+sb.auth.onAuthStateChange((event) => {
+  if (event === 'PASSWORD_RECOVERY') showSetPassword();
+});
+
 (async () => {
+  if (linkType || linkError) return; // don't auto-redirect mid-invite/reset
   const { data: { session } } = await sb.auth.getSession();
   if (session) window.location.href = 'vref_extractor.html';
 })();
@@ -81,10 +119,44 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 // Enter key submits
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
-    if (document.getElementById('login-form').style.display !== 'none') signIn();
+    if (document.getElementById('setpw-form').style.display !== 'none') setPassword();
+    else if (document.getElementById('login-form').style.display !== 'none') signIn();
     else sendReset();
   }
 });
+
+function showSetPassword() {
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('reset-form').style.display = 'none';
+  document.getElementById('setpw-form').style.display = 'block';
+  document.getElementById('login-err').textContent = '';
+}
+
+async function setPassword() {
+  const pw1   = document.getElementById('new-password').value;
+  const pw2   = document.getElementById('confirm-password').value;
+  const msgEl = document.getElementById('setpw-msg');
+  const btn   = document.getElementById('setpwBtn');
+
+  if (pw1.length < 8)  { msgEl.textContent = 'Password must be at least 8 characters.'; return; }
+  if (pw1 !== pw2)     { msgEl.textContent = 'Passwords do not match.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  msgEl.textContent = '';
+
+  const { error } = await sb.auth.updateUser({ password: pw1 });
+
+  if (error) {
+    msgEl.textContent = error.message.includes('session')
+      ? 'Your link has expired — use "Forgot password?" to get a new one.'
+      : error.message;
+    btn.disabled = false;
+    btn.textContent = 'Set Password';
+  } else {
+    window.location.href = 'vref_extractor.html';
+  }
+}
 
 async function signIn() {
   const email    = document.getElementById('email').value.trim();
