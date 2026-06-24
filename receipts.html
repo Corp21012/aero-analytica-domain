@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.1/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script async src="https://docs.opencv.org/4.10.0/opencv.js"></script>
 <style>
   *{box-sizing:border-box}
   body{margin:0;background:#2e2e2e;color:#c8c8c8;font-family:Helvetica,Arial,sans-serif;font-size:14px}
@@ -203,13 +204,33 @@ function money(tok){
   if(!m) return null;
   const v=parseFloat(m[0]); return isFinite(v)?v:null;
 }
+// repair common OCR letter→digit confusions inside a price token (never touches item names)
+const DIGITFIX={'O':'0','o':'0','Q':'0','D':'0','l':'1','I':'1','|':'1','i':'1','Z':'2','z':'2','A':'4','S':'5','s':'5','G':'6','b':'6','T':'7','B':'8','g':'9','q':'9'};
 function trailingPrice(line){
-  const m=line.match(/(\$?\s*\d{1,4}\s*[.,]\s*\d{2}|\$?\s*\d{1,4}\s\d{2})\s*$/);
-  if(!m) return null;
-  const price=money(m[1]); if(price===null) return null;
-  return { price, rest: line.slice(0,m.index).trim() };
+  let m=line.match(/(\$?\s*\d{1,4}\s*[.,]\s*\d{2}|\$?\s*\d{1,4}\s\d{2})\s*$/);
+  if(m){ const p=money(m[1]); if(p!==null) return { price:p, rest:line.slice(0,m.index).trim() }; }
+  // fallback: price-shaped token corrupted with letter-for-digit confusions ("$30.9S" -> 30.95)
+  m=line.match(/([$\s]*[0-9OoQDlI|iZzASsGbTBgq]{1,4}\s*[.,]\s*[0-9OoQDlI|iZzASsGbTBgq]{2})\s*$/);
+  if(m){
+    const fixed=m[1].replace(/[OoQDlI|iZzASsGbTBgq]/g,c=>DIGITFIX[c]||c);
+    if(/\d[.,]\d{2}$/.test(fixed.replace(/\s/g,''))){
+      const p=money(fixed); if(p!==null && p>0) return { price:p, rest:line.slice(0,m.index).trim() };
+    }
+  }
+  return null;
 }
 const priceOnly=(l)=>/^\s*\$?\s*\d{1,4}\s*[.,]\s*\d{2}\s*$/.test(l);
+// recognize garbled structural keywords ("pubtatal"->subtotal) so totals aren't counted as items.
+// Only the long, safe words get fuzzy-matched; tax/tip stay exact to avoid matching item names.
+function lev(a,b){a=a.toLowerCase();b=b.toLowerCase();const m=a.length,n=b.length;const d=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)]);for(let j=0;j<=n;j++)d[0][j]=j;for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n];}
+function fuzzyKey(line){
+  const w1=(line.replace(/[^A-Za-z ]/g,' ').trim().split(/\s+/)[0]||'');
+  const w2=line.replace(/[^A-Za-z ]/g,' ').trim().split(/\s+/).slice(0,2).join('');
+  if(w1.length<4) return null;
+  const KEYS={subtotal:2,total:1,balance:2,gratuity:2,payment:2,change:1,amount:2};
+  for(const k in KEYS){ const tol=KEYS[k]; if(lev(w1,k)<=tol||(w2&&lev(w2,k)<=tol)) return (k==='balance'||k==='amount')?'total':k; }
+  return null;
+}
 const SKIP=/(sub ?total|complete subtotal|^food\b|^tax\b|food tax|alcohol tax|state tax|sales tax|\btax\b|\btip\b|gratuity|service charge|srchrg|surcharge|kitchen apprec|balance|amount due|amount:|\bpayment\b|change due|\bchange\b|\bcash\b|credit total|debit|\bvisa\b|master|amex|discover|approval|auth|\bcard\b|account|acct|trans\b|batch|entry mode|app label|^aid|^arc|^tvr|^tsi|^iad|^cvm|^mid\b|^resp|^ref|invoice|server|\btable\b|guest|check ?#|check number|\bcheck\b|precheck|^date|^time|ordered|order ?type|order ?#|\bdine in\b|\bsale\b|thank|exchange|refund|signature|cardholder|merchant copy|customer copy|www\.|\.com|powered by|http|^tel|phone|suggested|^complete|approved|rewards|record|vehicle|license|^lot|rental|^\d{1,2}\s*%|^\s*\d{1,2}:\d{2}|\d{3}[-.\s]\d{3}[-.\s]\d{4}|x{4,}|\*{3,})/i;
 
 function parseReceipt(text){
@@ -232,10 +253,11 @@ function parseReceipt(text){
   let tax=0,sawTax=false;
   for(let idx=0;idx<lines.length;idx++){
     const l=lines[idx], low=l.toLowerCase();
+    const fk=fuzzyKey(l);
     if(/tax/.test(low)&&!/taxi/.test(low)){ const p=trailingPrice(l); if(p){tax+=p.price;sawTax=true;} continue; }
     if(/(tip|gratuity)/.test(low)&&!/^\s*\d{1,2}\s*%/.test(l)){ const p=trailingPrice(l); if(p&&!out.tipOCR)out.tipOCR=p.price; continue; }
-    if(/sub ?total/.test(low)){ const p=trailingPrice(l); if(p)out.subtotalOCR=p.price; continue; }
-    if(/total|balance|amount due/.test(low)){ const p=trailingPrice(l); if(p&&out.totalOCR===null)out.totalOCR=p.price; continue; }
+    if(fk==='subtotal'||/sub ?total/.test(low)){ const p=trailingPrice(l); if(p)out.subtotalOCR=p.price; continue; }
+    if(fk==='total'||fk==='change'||fk==='payment'||fk==='gratuity'||/total|balance|amount due/.test(low)){ const p=trailingPrice(l); if(p&&out.totalOCR===null&&(fk==='total'||/total|balance|amount due/.test(low)))out.totalOCR=p.price; continue; }
     if(SKIP.test(l)) continue;
 
     let tp=trailingPrice(l), desc, qty=1;
@@ -260,6 +282,65 @@ function parseReceipt(text){
   } else if(out.totalOCR){
     out.items=out.items.filter(i=> i.price<=out.totalOCR*1.5);
   }
+  return out;
+}
+
+// OpenCV.js: wait until the WASM runtime is live (handles both build styles)
+async function ensureCV(){
+  if(window._cvReady) return true;
+  for(let i=0;i<160;i++){
+    if(typeof cv!=='undefined'){
+      if(cv.Mat){ window._cvReady=true; return true; }
+      if(typeof cv.then==='function'){ try{ await cv; if(cv.Mat){window._cvReady=true; return true;} }catch(e){} }
+    }
+    await new Promise(r=>setTimeout(r,100));
+  }
+  return false;
+}
+// Adaptive-threshold pipeline (CLAHE + bilateral + adaptive). Returns a canvas.
+function opencvPreprocess(srcCanvas){
+  let src=cv.imread(srcCanvas), gray=new cv.Mat();
+  cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY); src.delete();
+  const maxd=Math.max(gray.rows,gray.cols), scale=1800/maxd;
+  if(scale<1||scale>1.3){
+    const d=new cv.Mat();
+    cv.resize(gray,d,new cv.Size(Math.round(gray.cols*scale),Math.round(gray.rows*scale)),0,0,scale<1?cv.INTER_AREA:cv.INTER_CUBIC);
+    gray.delete(); gray=d;
+  }
+  const clahe=new cv.CLAHE(2.5,new cv.Size(8,8)), eq=new cv.Mat();
+  clahe.apply(gray,eq); gray.delete(); clahe.delete();
+  const bf=new cv.Mat(); cv.bilateralFilter(eq,bf,7,50,50,cv.BORDER_DEFAULT); eq.delete();
+  const bw=new cv.Mat(); cv.adaptiveThreshold(bf,bw,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY,31,15); bf.delete();
+  const out=document.createElement('canvas'); cv.imshow(out,bw); bw.delete();
+  return out;
+}
+// consistency score: does the item sum match this parse's own OCR'd subtotal/total?
+function consistency(p){
+  const sub=p.items.reduce((s,i)=>s+(+i.price||0),0);
+  if(!p.items.length) return -1;
+  const ref=p.subtotalOCR || (p.totalOCR? p.totalOCR-(p.taxOCR||0)-(p.tipOCR||0) : null);
+  if(ref==null||ref<=0) return p.items.length*0.01;
+  return 1 - Math.min(1, Math.abs(sub-ref)/ref);
+}
+// aggressive rescue pipeline: bigger upscale + unsharp mask. High variance — only used
+// when the normal passes recover nothing, so it can rescue dead scans without corrupting good ones.
+function opencvPreprocessSharp(srcCanvas){
+  let src=cv.imread(srcCanvas), gray=new cv.Mat();
+  cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY); src.delete();
+  const maxd=Math.max(gray.rows,gray.cols), scale=2400/maxd;
+  if(scale<1||scale>1.2){
+    const d=new cv.Mat();
+    cv.resize(gray,d,new cv.Size(Math.round(gray.cols*scale),Math.round(gray.rows*scale)),0,0,scale<1?cv.INTER_AREA:cv.INTER_CUBIC);
+    gray.delete(); gray=d;
+  }
+  const clahe=new cv.CLAHE(3.0,new cv.Size(8,8)), eq=new cv.Mat();
+  clahe.apply(gray,eq); gray.delete(); clahe.delete();
+  // unsharp mask
+  const blur=new cv.Mat(); cv.GaussianBlur(eq,blur,new cv.Size(0,0),3,3,cv.BORDER_DEFAULT);
+  const sharp=new cv.Mat(); cv.addWeighted(eq,1.7,blur,-0.7,0,sharp); eq.delete(); blur.delete();
+  const bf=new cv.Mat(); cv.bilateralFilter(sharp,bf,7,50,50,cv.BORDER_DEFAULT); sharp.delete();
+  const bw=new cv.Mat(); cv.adaptiveThreshold(bf,bw,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY,31,15); bf.delete();
+  const out=document.createElement('canvas'); cv.imshow(out,bw); bw.delete();
   return out;
 }
 
@@ -315,21 +396,67 @@ async function handleFiles(files){
 const setStat=(id,t)=>{const e=document.getElementById(id+'-s'); if(e)e.textContent=t;};
 const setBar =(id,p)=>{const e=document.getElementById(id+'-b'); if(e)e.style.width=Math.round(p*100)+'%';};
 
+// One reused Tesseract worker on the high-accuracy "best" LSTM model (≈15MB, cached
+// after first load). Falls back to the default model if the best one can't be fetched.
+let _ocrWorker=null;
+async function getOCRWorker(){
+  if(_ocrWorker) return _ocrWorker;
+  const logger=m=>{ if(m.status==='recognizing text' && window._ocrProgress) window._ocrProgress(m.progress); };
+  try{
+    _ocrWorker=await Tesseract.createWorker('eng',1,{ langPath:'https://tessdata.projectnaptha.com/4.0.0_best', logger });
+  }catch(e){
+    console.warn('best OCR model unavailable, using default model',e);
+    _ocrWorker=await Tesseract.createWorker('eng',1,{ logger });
+  }
+  await _ocrWorker.setParameters({ tessedit_pageseg_mode:'4' });
+  return _ocrWorker;
+}
+
 async function processFile(file,id){
   setStat(id,'preparing…');
   const blob=await toImageBlob(file);
   const url=URL.createObjectURL(blob);
   const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url;});
   document.getElementById(id+'-t').src=url;
+
+  // raw canvas (for OpenCV) + existing Otsu canvas
+  const raw=document.createElement('canvas'); raw.width=img.width; raw.height=img.height;
+  raw.getContext('2d').drawImage(img,0,0);
+  const canvasA=preprocess(img);
+
+  // OpenCV adaptive pipeline — best-effort, never blocks
+  let canvasB=null;
+  setStat(id,'enhancing…');
+  if(await ensureCV()){ try{ canvasB=opencvPreprocess(raw); }catch(e){ console.warn('OpenCV preprocess failed, using base pipeline',e); } }
+
+  const recog=async(canvas,lo,hi)=>{
+    const w=await getOCRWorker();
+    window._ocrProgress=p=>setBar(id, lo+(hi-lo)*p);
+    const { data }=await w.recognize(canvas);
+    window._ocrProgress=null;
+    return data.text;
+  };
+
   setStat(id,'reading…');
-  const canvas=preprocess(img);
-  const { data } = await Tesseract.recognize(canvas,'eng',{
-    tessedit_pageseg_mode:'4',
-    logger:m=>{ if(m.status==='recognizing text') setBar(id,m.progress); }
-  });
+  const textA=await recog(canvasA, 0, canvasB?0.45:0.9);
+  let parsed=parseReceipt(textA); parsed.raw=textA;
+  if(canvasB){
+    const textB=await recog(canvasB, 0.45, 0.9);
+    const pB=parseReceipt(textB);
+    if(consistency(pB)>consistency(parsed)){ parsed=pB; parsed.raw=textB; }
+  }
+  // rescue: nothing parsed → try the aggressive sharpening pass
+  if(parsed.items.length<1 && window._cvReady){
+    setStat(id,'sharpening…');
+    try{
+      const canvasC=opencvPreprocessSharp(raw);
+      const textC=await recog(canvasC, 0.9, 1);
+      const pC=parseReceipt(textC);
+      if(pC.items.length>parsed.items.length){ parsed=pC; parsed.raw=textC; }
+    }catch(e){ console.warn('rescue pass failed',e); }
+  }
   setBar(id,1); setStat(id,'done');
-  const parsed=parseReceipt(data.text);
-  parsed.raw=data.text;
+
   parsed.blob=blob; parsed.previewUrl=url; parsed.fileName=file.name;
   document.getElementById(id).remove();
   addReview(parsed);
