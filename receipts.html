@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Receipts — Aero Analytica</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.1/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#2e2e2e;color:#c8c8c8;font-family:Helvetica,Arial,sans-serif;font-size:14px}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 14px 60px}
+  /* header */
+  .nav{display:flex;align-items:center;gap:0;margin:14px 0 6px;border:1px solid #444;border-radius:8px;background:#353535;overflow:hidden}
+  .nav a,.nav span.title{font-size:12px;padding:9px 14px;color:#888;text-decoration:none;cursor:pointer;letter-spacing:.4px}
+  .nav a:hover{background:#444;color:#ccc}
+  .nav .title{color:#d8d8d8;font-weight:700;text-transform:uppercase;border-right:1px solid #444;background:#3d3d3d}
+  .nav .sp{margin-left:auto}
+  .nav #who{color:#555;font-size:11px}
+  .nav a.act{border-left:1px solid #444;color:#888}
+  h1{font-size:22px;font-weight:600;color:#d8d8d8;margin:14px 0 2px}
+  .sub{font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.8px;margin-bottom:18px}
+  /* dropzone */
+  .drop{border:2px dashed #4a4a4a;border-radius:12px;padding:42px 20px;text-align:center;background:#333;transition:all .15s;cursor:pointer}
+  .drop.over{border-color:#DE9020;background:#3a3320}
+  .drop .big{font-size:15px;color:#bbb;margin-bottom:6px}
+  .drop .small{font-size:12px;color:#777}
+  .drop .plane{font-size:26px;margin-bottom:10px;opacity:.5}
+  /* queue */
+  .q{margin-top:16px;display:flex;flex-direction:column;gap:10px}
+  .qitem{display:flex;align-items:center;gap:12px;background:#353535;border:1px solid #444;border-radius:8px;padding:10px 12px}
+  .qitem img{width:42px;height:42px;object-fit:cover;border-radius:6px;border:1px solid #4a4a4a;flex-shrink:0}
+  .qitem .nm{font-size:13px;color:#ccc;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .qitem .st{font-size:11px;color:#888;font-family:'Courier New',monospace;white-space:nowrap}
+  .bar{height:4px;background:#2a2a2a;border-radius:2px;overflow:hidden;width:120px;flex-shrink:0}
+  .bar i{display:block;height:100%;background:#DE9020;width:0;transition:width .2s}
+  /* review card */
+  .card{background:#353535;border:1px solid #444;border-radius:12px;margin-top:18px;overflow:hidden}
+  .card.flagged{border-color:#7a5a20}
+  .chead{display:flex;gap:14px;padding:14px;border-bottom:1px solid #444;align-items:flex-start}
+  .chead img{width:90px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #4a4a4a;cursor:zoom-in;flex-shrink:0}
+  .chead .meta{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .f{display:flex;flex-direction:column;gap:4px}
+  .f.full{grid-column:1 / -1}
+  .f label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#888}
+  .f input,.f select{background:#2a2a2a;border:1px solid #4a4a4a;border-radius:6px;padding:8px 10px;color:#d8d8d8;font-size:13px;font-family:inherit}
+  .f input:focus,.f select:focus{outline:none;border-color:#DE9020}
+  .flag{color:#e0a83a;font-size:11px;margin-left:6px}
+  /* line items table */
+  .lt{width:100%;border-collapse:collapse;font-size:13px}
+  .lt th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#888;padding:8px 10px;border-bottom:1px solid #444;font-weight:600}
+  .lt td{padding:5px 8px;border-bottom:1px solid #3a3a3a;vertical-align:middle}
+  .lt input,.lt select{width:100%;background:#2a2a2a;border:1px solid #444;border-radius:5px;padding:6px 7px;color:#d8d8d8;font-size:13px;font-family:inherit}
+  .lt input:focus,.lt select:focus{outline:none;border-color:#DE9020}
+  .lt input.q{text-align:center}
+  .lt input.p{text-align:right;font-family:'Courier New',monospace}
+  .lt td.rm{width:28px;text-align:center}
+  .lt td.rm button{background:none;border:none;color:#888;cursor:pointer;font-size:14px;padding:2px 4px}
+  .lt td.rm button:hover{color:#d97070}
+  .addrow{font-size:12px;color:#888;cursor:pointer;padding:8px 10px;display:inline-block}
+  .addrow:hover{color:#DE9020}
+  /* totals + people */
+  .foot{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:14px;border-top:1px solid #444}
+  @media(max-width:680px){.foot{grid-template-columns:1fr}.chead .meta{grid-template-columns:1fr}}
+  .totrow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px}
+  .totrow label{color:#999}
+  .totrow input{width:110px;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:5px;padding:6px 8px;color:#d8d8d8;text-align:right;font-family:'Courier New',monospace;font-size:13px}
+  .totrow.grand{border-top:1px solid #444;margin-top:4px;padding-top:10px;font-size:16px;font-weight:700;color:#d8d8d8}
+  .totrow.grand .v{font-family:'Courier New',monospace;color:#DE9020}
+  .ppl h3,.tot h3{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#888;margin:0 0 10px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .chip{background:#3a3320;border:1px solid #DE9020;color:#e0a83a;border-radius:14px;padding:4px 10px;font-size:12px;display:flex;align-items:center;gap:6px}
+  .chip button{background:none;border:none;color:#e0a83a;cursor:pointer;padding:0;font-size:13px;line-height:1}
+  .addppl{display:flex;gap:6px}
+  .addppl input{flex:1;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:6px;padding:7px 9px;color:#d8d8d8;font-size:13px}
+  .psum{margin-top:6px;display:flex;flex-direction:column;gap:8px}
+  .pcard{background:#2f2f2f;border:1px solid #444;border-radius:8px;padding:10px}
+  .pcard .pn{font-size:13px;font-weight:700;color:#d8d8d8;display:flex;justify-content:space-between;margin-bottom:8px}
+  .pcard .pn .pt{font-family:'Courier New',monospace;color:#DE9020}
+  .pcard .pr{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#999;padding:2px 0}
+  .pcard .pr input{width:80px;background:#2a2a2a;border:1px solid #444;border-radius:4px;padding:4px 6px;color:#c8c8c8;text-align:right;font-family:'Courier New',monospace;font-size:12px}
+  /* buttons */
+  .btns{display:flex;gap:8px;padding:14px;border-top:1px solid #444;flex-wrap:wrap}
+  .btn{font-size:13px;padding:9px 16px;border-radius:7px;border:1px solid #4a4a4a;background:#3a3a3a;color:#ccc;cursor:pointer;font-family:inherit}
+  .btn:hover{background:#444}
+  .btn.primary{background:#505050;border-color:#505050;color:#e8e8e8;font-weight:600}
+  .btn.primary:hover{background:#5c5c5c}
+  .btn.amber{background:#DE9020;border-color:#DE9020;color:#1a1a1a;font-weight:700}
+  .btn.amber:hover{background:#e8a338}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.ghost{background:none}
+  /* saved list */
+  .saved{margin-top:30px}
+  .saved h2{font-size:14px;color:#d8d8d8;font-weight:600;display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .saved .exp{display:flex;gap:6px;margin:10px 0 14px;flex-wrap:wrap}
+  .stbl{width:100%;border-collapse:collapse;font-size:13px}
+  .stbl th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#888;padding:8px 10px;border-bottom:1px solid #444}
+  .stbl td{padding:9px 10px;border-bottom:1px solid #3a3a3a;color:#bbb}
+  .stbl tr:hover td{background:#333}
+  .stbl .amt{text-align:right;font-family:'Courier New',monospace;color:#d8d8d8}
+  .stbl .who{font-size:11px;color:#888}
+  .empty{padding:30px;text-align:center;color:#777;font-size:13px;border:1px dashed #444;border-radius:10px}
+  .msg{font-size:12px;padding:6px 0;min-height:18px}
+  .msg.err{color:#d97070}.msg.ok{color:#6abf7a}
+  /* lightbox */
+  .lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;align-items:center;justify-content:center;padding:30px;cursor:zoom-out}
+  .lb.open{display:flex}
+  .lb img{max-width:100%;max-height:100%;border-radius:8px}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="nav">
+    <span class="title">Receipts</span>
+    <a href="hub.html" title="Hub">&#8962; Hub</a>
+    <a href="tailbook.html">Tailbook</a>
+    <span class="sp"></span>
+    <span id="who"></span>
+    <a class="act" onclick="openSettings()" title="Settings">&#9881;</a>
+    <a class="act" onclick="signOut()" title="Sign out">&#9211;</a>
+  </nav>
+
+  <h1>Receipt Scanner</h1>
+  <div class="sub">Scan · split · export — runs in your browser</div>
+
+  <div class="drop" id="drop">
+    <div class="plane">&#9992;</div>
+    <div class="big">Drop receipt photos here</div>
+    <div class="small">or tap to choose — JPG, PNG, or iPhone HEIC. Reading happens on your device.</div>
+    <input type="file" id="file" accept="image/*,.heic,.heif" multiple class="hide">
+  </div>
+  <div class="q" id="queue"></div>
+
+  <div id="reviews"></div>
+
+  <div class="saved">
+    <h2>Saved receipts <span id="scount" style="color:#666;font-weight:400;font-size:12px"></span></h2>
+    <div class="exp">
+      <button class="btn ghost" onclick="exportCSV('items')">&#8595; Export line items</button>
+      <button class="btn ghost" onclick="exportCSV('people')">&#8595; Export by person</button>
+      <button class="btn ghost" onclick="loadSaved()">&#8635; Refresh</button>
+    </div>
+    <div id="savedlist"><div class="empty">No saved receipts yet. Scan one above to get started.</div></div>
+  </div>
+</div>
+
+<div class="lb" id="lb" onclick="this.classList.remove('open')"><img id="lbimg" src=""></div>
+
+<!-- settings modal -->
+<div class="lb" id="settings-modal" style="background:rgba(0,0,0,.55)">
+  <div onclick="event.stopPropagation()" style="background:#353535;border:1px solid #444;border-radius:12px;padding:28px;width:100%;max-width:340px;cursor:auto">
+    <h2 style="font-size:15px;color:#d8d8d8;margin:0 0 18px">&#9881; Settings</h2>
+    <div class="f" style="margin-bottom:12px"><label>New Password</label><input type="password" id="cp-new" placeholder="••••••••"></div>
+    <div class="f" style="margin-bottom:12px"><label>Confirm Password</label><input type="password" id="cp-confirm" placeholder="••••••••"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn ghost" style="flex:1" onclick="closeSettings()">Cancel</button>
+      <button class="btn primary" style="flex:1" onclick="changePassword()">Save</button>
+    </div>
+    <div class="msg" id="cp-msg" style="text-align:center"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://rabjbhtoufrrfznpztjt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_q-VtpKa9-S_uTXU3ZmrLDw_6dwIz7Ch';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+window._sb = sb;
+let SESSION = null;
+
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = 'index.html'; return; }
+  SESSION = session;
+  document.getElementById('who').textContent = session.user.email;
+  loadSaved();
+})();
+async function signOut(){ await sb.auth.signOut(); window.location.href = 'index.html'; }
+
+function openSettings(){ document.getElementById('settings-modal').classList.add('open'); }
+function closeSettings(){ document.getElementById('settings-modal').classList.remove('open'); }
+async function changePassword(){
+  const a=document.getElementById('cp-new').value, b=document.getElementById('cp-confirm').value, m=document.getElementById('cp-msg');
+  m.className='msg err';
+  if(a.length<8){m.textContent='At least 8 characters.';return;}
+  if(a!==b){m.textContent='Passwords do not match.';return;}
+  const {error}=await sb.auth.updateUser({password:a});
+  if(error){m.textContent=error.message;return;}
+  m.className='msg ok'; m.textContent='Password updated.'; setTimeout(closeSettings,1000);
+}
+
+/* ───────────────────────── OCR + parsing ───────────────────────── */
+// Normalize an OCR'd money token: "20 .00"->20.00, "24 00"->24.00, "$166.67"->166.67
+function money(tok){
+  if(!tok) return null;
+  let s=String(tok).replace(/[^0-9., ]/g,'').trim();
+  s=s.replace(/(\d)\s+\.(\d)/g,'$1.$2');
+  s=s.replace(/(\d)\s+(\d{2})\b/g,'$1.$2');
+  s=s.replace(/,(\d{2})\b/,'.$1');
+  s=s.replace(/[ ,]/g,'');
+  const m=s.match(/\d+(?:\.\d{1,2})?/);
+  if(!m) return null;
+  const v=parseFloat(m[0]); return isFinite(v)?v:null;
+}
+function trailingPrice(line){
+  const m=line.match(/(\$?\s*\d{1,4}\s*[.,]\s*\d{2}|\$?\s*\d{1,4}\s\d{2})\s*$/);
+  if(!m) return null;
+  const price=money(m[1]); if(price===null) return null;
+  return { price, rest: line.slice(0,m.index).trim() };
+}
+const priceOnly=(l)=>/^\s*\$?\s*\d{1,4}\s*[.,]\s*\d{2}\s*$/.test(l);
+const SKIP=/(sub ?total|complete subtotal|^food\b|^tax\b|food tax|alcohol tax|state tax|sales tax|\btax\b|\btip\b|gratuity|service charge|srchrg|surcharge|kitchen apprec|balance|amount due|amount:|\bpayment\b|change due|\bchange\b|\bcash\b|credit total|debit|\bvisa\b|master|amex|discover|approval|auth|\bcard\b|account|acct|trans\b|batch|entry mode|app label|^aid|^arc|^tvr|^tsi|^iad|^cvm|^mid\b|^resp|^ref|invoice|server|\btable\b|guest|check ?#|check number|\bcheck\b|precheck|^date|^time|ordered|order ?type|order ?#|\bdine in\b|\bsale\b|thank|exchange|refund|signature|cardholder|merchant copy|customer copy|www\.|\.com|powered by|http|^tel|phone|suggested|^complete|approved|rewards|record|vehicle|license|^lot|rental|^\d{1,2}\s*%|^\s*\d{1,2}:\d{2}|\d{3}[-.\s]\d{3}[-.\s]\d{4}|x{4,}|\*{3,})/i;
+
+function parseReceipt(text){
+  const lines=text.split(/\r?\n/).map(l=>l.replace(/\s+/g,' ').trim()).filter(Boolean);
+  const out={merchant:'',date:'',items:[],taxOCR:0,tipOCR:0,subtotalOCR:null,totalOCR:null,flags:[]};
+
+  // merchant: first clean line near the top (no colon, no digit-run, no trailing price)
+  for(const l of lines.slice(0,7)){
+    if(l.includes(':')||/\d{3}/.test(l)||trailingPrice(l)) continue;
+    const letters=(l.match(/[A-Za-z]/g)||[]).length;
+    if(letters>=4 && letters/l.length>0.55 && l.length<=30){ out.merchant=l; break; }
+  }
+
+  for(const l of lines){
+    const m=l.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/);
+    if(m){ let[_,a,b,c]=m; if(c.length===2)c='20'+c;
+      out.date=`${c}-${String(a).padStart(2,'0')}-${String(b).padStart(2,'0')}`; break; }
+  }
+
+  let tax=0,sawTax=false;
+  for(let idx=0;idx<lines.length;idx++){
+    const l=lines[idx], low=l.toLowerCase();
+    if(/tax/.test(low)&&!/taxi/.test(low)){ const p=trailingPrice(l); if(p){tax+=p.price;sawTax=true;} continue; }
+    if(/(tip|gratuity)/.test(low)&&!/^\s*\d{1,2}\s*%/.test(l)){ const p=trailingPrice(l); if(p&&!out.tipOCR)out.tipOCR=p.price; continue; }
+    if(/sub ?total/.test(low)){ const p=trailingPrice(l); if(p)out.subtotalOCR=p.price; continue; }
+    if(/total|balance|amount due/.test(low)){ const p=trailingPrice(l); if(p&&out.totalOCR===null)out.totalOCR=p.price; continue; }
+    if(SKIP.test(l)) continue;
+
+    let tp=trailingPrice(l), desc, qty=1;
+    if(tp && tp.rest){ desc=tp.rest; }
+    else if(!tp && idx+1<lines.length && priceOnly(lines[idx+1]) && /[A-Za-z]{2,}/.test(l)){
+      tp={price:money(lines[idx+1])}; desc=l; idx++;
+    } else continue;
+    if(tp.price===null||tp.price<=0||tp.price>5000) continue;
+    const qm=desc.match(/^(\d{1,3})\s+(.+)$/);
+    if(qm){ qty=parseInt(qm[1],10); desc=qm[2]; }
+    desc=desc.replace(/[^A-Za-z0-9 &'\/.+()-]/g,'').trim();
+    if(desc.replace(/[^A-Za-z]/g,'').length<2) continue;
+    out.items.push({qty,desc,price:tp.price,person:''});
+  }
+  if(sawTax) out.taxOCR=Math.round(tax*100)/100;
+  // guard against a single OCR-misread price ballooning the subtotal
+  if(out.items.length>=3){
+    const prices=out.items.map(i=>i.price).sort((a,b)=>a-b);
+    const med=prices[Math.floor(prices.length/2)]||0;
+    const hardCap=out.totalOCR?out.totalOCR*1.5:Infinity;
+    out.items=out.items.filter(i=> i.price<=hardCap && (med<=0 || i.price<=med*12));
+  } else if(out.totalOCR){
+    out.items=out.items.filter(i=> i.price<=out.totalOCR*1.5);
+  }
+  return out;
+}
+
+async function toImageBlob(file){
+  if(/heic|heif/i.test(file.type) || /\.he(ic|if)$/i.test(file.name)){
+    return await heic2any({ blob:file, toType:'image/jpeg', quality:0.92 });
+  }
+  return file;
+}
+function preprocess(img){
+  const scale = Math.min(2, 2200/Math.max(img.width,img.height) || 2);
+  const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const ctx=c.getContext('2d'); ctx.drawImage(img,0,0,w,h);
+  const d=ctx.getImageData(0,0,w,h), px=d.data;
+  // grayscale + contrast stretch
+  let mn=255,mx=0;
+  for(let i=0;i<px.length;i+=4){ const g=(px[i]*0.3+px[i+1]*0.59+px[i+2]*0.11); px[i]=px[i+1]=px[i+2]=g; if(g<mn)mn=g; if(g>mx)mx=g; }
+  const rng=Math.max(1,mx-mn);
+  for(let i=0;i<px.length;i+=4){ let g=(px[i]-mn)*255/rng; g=g<0?0:g>255?255:g; px[i]=px[i+1]=px[i+2]=g; }
+  // Otsu threshold -> crisp black/white, the step that most improves OCR
+  const hist=new Array(256).fill(0);
+  for(let i=0;i<px.length;i+=4) hist[px[i]|0]++;
+  const totalPx=w*h; let sum=0; for(let t=0;t<256;t++) sum+=t*hist[t];
+  let sumB=0,wB=0,mxv=0,thr=128;
+  for(let t=0;t<256;t++){ wB+=hist[t]; if(!wB)continue; const wF=totalPx-wB; if(!wF)break;
+    sumB+=t*hist[t]; const mB=sumB/wB, mF=(sum-sumB)/wF, between=wB*wF*(mB-mF)*(mB-mF);
+    if(between>mxv){mxv=between;thr=t;} }
+  for(let i=0;i<px.length;i+=4){ const v=px[i]>thr?255:0; px[i]=px[i+1]=px[i+2]=v; }
+  ctx.putImageData(d,0,0);
+  return c;
+}
+
+/* ───────────────────────── queue + flow ───────────────────────── */
+const drop=document.getElementById('drop'), fileInput=document.getElementById('file');
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=e=>{ handleFiles([...e.target.files]); fileInput.value=''; };
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>{ handleFiles([...e.dataTransfer.files].filter(f=>/image|heic|heif/i.test(f.type)||/\.he(ic|if)$/i.test(f.name))); });
+
+let RID=0;
+async function handleFiles(files){
+  for(const file of files){
+    const id='q'+(RID++);
+    const row=document.createElement('div'); row.className='qitem'; row.id=id;
+    row.innerHTML=`<img id="${id}-t"><div class="nm">${file.name}</div><div class="bar"><i id="${id}-b"></i></div><div class="st" id="${id}-s">queued…</div>`;
+    document.getElementById('queue').appendChild(row);
+    try{ await processFile(file,id); }
+    catch(err){ console.error(err); setStat(id,'failed: '+(err.message||err)); }
+  }
+}
+const setStat=(id,t)=>{const e=document.getElementById(id+'-s'); if(e)e.textContent=t;};
+const setBar =(id,p)=>{const e=document.getElementById(id+'-b'); if(e)e.style.width=Math.round(p*100)+'%';};
+
+async function processFile(file,id){
+  setStat(id,'preparing…');
+  const blob=await toImageBlob(file);
+  const url=URL.createObjectURL(blob);
+  const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url;});
+  document.getElementById(id+'-t').src=url;
+  setStat(id,'reading…');
+  const canvas=preprocess(img);
+  const { data } = await Tesseract.recognize(canvas,'eng',{
+    tessedit_pageseg_mode:'4',
+    logger:m=>{ if(m.status==='recognizing text') setBar(id,m.progress); }
+  });
+  setBar(id,1); setStat(id,'done');
+  const parsed=parseReceipt(data.text);
+  parsed.raw=data.text;
+  parsed.blob=blob; parsed.previewUrl=url; parsed.fileName=file.name;
+  document.getElementById(id).remove();
+  addReview(parsed);
+}
+
+/* ───────────────────────── review card ───────────────────────── */
+let REV=0; const REVS={};
+function addReview(p){
+  const rid='r'+(REV++);
+  // compute subtotal from items
+  const sub=p.items.reduce((s,i)=>s+(+i.price||0),0);
+  const flags=[];
+  if(p.items.length===0) flags.push('No line items detected — add them by hand.');
+  if(p.subtotalOCR!==null && Math.abs(p.subtotalOCR-sub)>0.05) flags.push(`Printed subtotal ($${p.subtotalOCR.toFixed(2)}) ≠ items sum ($${sub.toFixed(2)}). Using the items sum.`);
+  if(!p.date) flags.push('No date found.');
+  REVS[rid]={ merchant:p.merchant, date:p.date, items:p.items.map(i=>({...i})),
+    tax:p.taxOCR||0, tip:p.tipOCR||0, people:[], overrides:{}, blob:p.blob, previewUrl:p.previewUrl,
+    fileName:p.fileName, raw:p.raw, flags };
+  renderReview(rid);
+}
+function renderReview(rid){
+  const r=REVS[rid];
+  const sub=r.items.reduce((s,i)=>s+(+i.price||0),0);
+  const total=sub+(+r.tax||0)+(+r.tip||0);
+  let host=document.getElementById(rid);
+  if(!host){ host=document.createElement('div'); host.id=rid; document.getElementById('reviews').appendChild(host); }
+
+  const itemRows=r.items.map((it,i)=>`
+    <tr>
+      <td style="width:54px"><input class="q" value="${esc(it.qty)}" onchange="upd('${rid}',${i},'qty',this.value)"></td>
+      <td><input value="${esc(it.desc)}" onchange="upd('${rid}',${i},'desc',this.value)"></td>
+      <td style="width:90px"><input class="p" value="${(+it.price||0).toFixed(2)}" onchange="upd('${rid}',${i},'price',this.value)"></td>
+      <td style="width:150px">
+        <select onchange="upd('${rid}',${i},'person',this.value)">
+          <option value=""${it.person?'':' selected'}>— unassigned —</option>
+          ${r.people.map(pp=>`<option${it.person===pp?' selected':''}>${esc(pp)}</option>`).join('')}
+        </select>
+      </td>
+      <td class="rm"><button onclick="delRow('${rid}',${i})" title="Remove">&times;</button></td>
+    </tr>`).join('');
+
+  host.innerHTML=`
+  <div class="card ${r.flags.length?'flagged':''}">
+    <div class="chead">
+      <img src="${r.previewUrl}" onclick="lightbox('${r.previewUrl}')" title="Tap to enlarge">
+      <div class="meta">
+        <div class="f"><label>Merchant</label><input value="${esc(r.merchant)}" onchange="setField('${rid}','merchant',this.value)"></div>
+        <div class="f"><label>Date</label><input type="date" value="${esc(r.date)}" onchange="setField('${rid}','date',this.value)"></div>
+        ${r.flags.length?`<div class="f full"><label>Needs a look${r.flags.length>1?` (${r.flags.length})`:''}</label><div style="font-size:12px;color:#e0a83a;line-height:1.5">${r.flags.map(f=>'• '+f).join('<br>')}</div></div>`:''}
+      </div>
+    </div>
+
+    <table class="lt">
+      <thead><tr><th>Qty</th><th>Item</th><th>Price</th><th>Assign to</th><th></th></tr></thead>
+      <tbody>${itemRows||''}</tbody>
+    </table>
+    <span class="addrow" onclick="addRow('${rid}')">+ Add line item</span>
+
+    <div class="foot">
+      <div class="tot">
+        <h3>Totals</h3>
+        <div class="totrow"><label>Subtotal (from items)</label><span class="v" style="font-family:'Courier New',monospace">$${sub.toFixed(2)}</span></div>
+        <div class="totrow"><label>Tax</label><input value="${(+r.tax||0).toFixed(2)}" onchange="setField('${rid}','tax',this.value)"></div>
+        <div class="totrow"><label>Tip</label><input value="${(+r.tip||0).toFixed(2)}" onchange="setField('${rid}','tip',this.value)"></div>
+        <div class="totrow grand"><label>Total</label><span class="v">$${total.toFixed(2)}</span></div>
+      </div>
+      <div class="ppl">
+        <h3>People &amp; split</h3>
+        <div class="chips">${r.people.map(pp=>`<span class="chip">${esc(pp)}<button onclick="delPerson('${rid}','${esc(pp)}')">&times;</button></span>`).join('')||'<span style="font-size:12px;color:#777">Add people, then assign items above.</span>'}</div>
+        <div class="addppl"><input id="${rid}-pp" placeholder="Add a person…" onkeydown="if(event.key==='Enter'){addPerson('${rid}')}"><button class="btn" onclick="addPerson('${rid}')">Add</button></div>
+        <div class="psum">${peopleSummary(rid)}</div>
+      </div>
+    </div>
+
+    <div class="btns">
+      <button class="btn amber" onclick="saveReview('${rid}')">Save receipt</button>
+      <button class="btn ghost" onclick="discard('${rid}')">Discard</button>
+      <div class="msg" id="${rid}-msg" style="align-self:center"></div>
+    </div>
+  </div>`;
+}
+function peopleSummary(rid){
+  const r=REVS[rid];
+  const sub=r.items.reduce((s,i)=>s+(+i.price||0),0);
+  if(!r.people.length) return '';
+  return r.people.map(pp=>{
+    const share=r.items.filter(i=>i.person===pp).reduce((s,i)=>s+(+i.price||0),0);
+    const frac= sub>0 ? share/sub : 0;
+    const ov=r.overrides[pp]||{};
+    const tax = ov.tax!=null ? +ov.tax : Math.round((+r.tax||0)*frac*100)/100;
+    const tip = ov.tip!=null ? +ov.tip : Math.round((+r.tip||0)*frac*100)/100;
+    const ptot=share+tax+tip;
+    return `<div class="pcard">
+      <div class="pn"><span>${esc(pp)}</span><span class="pt">$${ptot.toFixed(2)}</span></div>
+      <div class="pr"><span>Items</span><span style="font-family:'Courier New',monospace;color:#bbb">$${share.toFixed(2)}</span></div>
+      <div class="pr"><span>Tax (${Math.round(frac*100)}%)</span><input value="${tax.toFixed(2)}" onchange="setOverride('${rid}','${esc(pp)}','tax',this.value)"></div>
+      <div class="pr"><span>Tip (${Math.round(frac*100)}%)</span><input value="${tip.toFixed(2)}" onchange="setOverride('${rid}','${esc(pp)}','tip',this.value)"></div>
+    </div>`;
+  }).join('');
+}
+// editing handlers
+function upd(rid,i,k,v){ const it=REVS[rid].items[i]; it[k]= k==='qty'?(parseInt(v,10)||1): k==='price'?(money(v)||0): v; if(k==='price'||k==='person')renderReview(rid); }
+function setField(rid,k,v){ REVS[rid][k]= (k==='tax'||k==='tip')?(money(v)||0): v; renderReview(rid); }
+function setOverride(rid,pp,k,v){ (REVS[rid].overrides[pp]=REVS[rid].overrides[pp]||{})[k]=money(v)||0; renderReview(rid); }
+function addRow(rid){ REVS[rid].items.push({qty:1,desc:'',price:0,person:''}); renderReview(rid); }
+function delRow(rid,i){ REVS[rid].items.splice(i,1); renderReview(rid); }
+function addPerson(rid){ const el=document.getElementById(rid+'-pp'); const n=(el.value||'').trim(); if(n&&!REVS[rid].people.includes(n))REVS[rid].people.push(n); renderReview(rid); }
+function delPerson(rid,pp){ const r=REVS[rid]; r.people=r.people.filter(x=>x!==pp); r.items.forEach(i=>{if(i.person===pp)i.person='';}); delete r.overrides[pp]; renderReview(rid); }
+function discard(rid){ if(REVS[rid].previewUrl)URL.revokeObjectURL(REVS[rid].previewUrl); delete REVS[rid]; document.getElementById(rid).remove(); }
+function lightbox(u){ document.getElementById('lbimg').src=u; document.getElementById('lb').classList.add('open'); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ───────────────────────── save ───────────────────────── */
+async function saveReview(rid){
+  const r=REVS[rid], msg=document.getElementById(rid+'-msg');
+  msg.className='msg'; msg.textContent='Saving…';
+  const sub=r.items.reduce((s,i)=>s+(+i.price||0),0);
+  const total=sub+(+r.tax||0)+(+r.tip||0);
+  const people=r.people.map(pp=>{
+    const share=r.items.filter(i=>i.person===pp).reduce((s,i)=>s+(+i.price||0),0);
+    const frac=sub>0?share/sub:0; const ov=r.overrides[pp]||{};
+    const tax=ov.tax!=null?+ov.tax:Math.round((+r.tax||0)*frac*100)/100;
+    const tip=ov.tip!=null?+ov.tip:Math.round((+r.tip||0)*frac*100)/100;
+    return { name:pp, items_total:+share.toFixed(2), tax, tip, total:+(share+tax+tip).toFixed(2) };
+  });
+  try{
+    let path=null;
+    if(r.blob){
+      const safe=(r.fileName||'receipt').replace(/[^a-zA-Z0-9._-]+/g,'_').replace(/\.(heic|heif)$/i,'.jpg');
+      path=`${SESSION.user.id}/${Date.now()}_${safe}`;
+      const { error:upErr }=await sb.storage.from('receipts').upload(path,r.blob,{contentType:r.blob.type||'image/jpeg'});
+      if(upErr) throw upErr;
+    }
+    const { error }=await sb.from('receipts').insert({
+      created_by:SESSION.user.id, merchant:r.merchant||null, receipt_date:r.date||null, image_path:path,
+      subtotal:+sub.toFixed(2), tax:+(+r.tax||0).toFixed(2), tip:+(+r.tip||0).toFixed(2), total:+total.toFixed(2),
+      line_items:r.items.map(i=>({qty:i.qty,desc:i.desc,price:+(+i.price||0).toFixed(2),person:i.person||null})),
+      people, raw_ocr:r.raw||null
+    });
+    if(error) throw error;
+    msg.className='msg ok'; msg.textContent='Saved.';
+    setTimeout(()=>discard(rid),700); loadSaved();
+  }catch(e){ msg.className='msg err'; msg.textContent='Save failed: '+(e.message||e); }
+}
+
+/* ───────────────────────── saved list + export ───────────────────────── */
+let SAVED=[];
+async function loadSaved(){
+  try{
+    const { data, error }=await sb.from('receipts').select('*').order('created_at',{ascending:false});
+    if(error) throw error;
+    SAVED=data||[];
+  }catch(e){ SAVED=[]; }
+  const el=document.getElementById('savedlist');
+  document.getElementById('scount').textContent=SAVED.length?`· ${SAVED.length}`:'';
+  if(!SAVED.length){ el.innerHTML='<div class="empty">No saved receipts yet. Scan one above to get started.</div>'; return; }
+  el.innerHTML=`<table class="stbl"><thead><tr><th>Date</th><th>Merchant</th><th>People</th><th class="amt">Total</th></tr></thead><tbody>${
+    SAVED.map(r=>`<tr>
+      <td>${r.receipt_date||'—'}</td>
+      <td>${esc(r.merchant||'—')}</td>
+      <td class="who">${(r.people||[]).map(p=>esc(p.name)).join(', ')||'—'}</td>
+      <td class="amt">$${(+r.total||0).toFixed(2)}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+function dl(name,text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
+function csvCell(v){ v=v==null?'':String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+function exportCSV(kind){
+  if(!SAVED.length){ alert('Nothing to export yet.'); return; }
+  let rows=[];
+  if(kind==='items'){
+    rows.push(['Date','Merchant','Qty','Item','Price','Assigned to']);
+    SAVED.forEach(r=>(r.line_items||[]).forEach(li=>rows.push([r.receipt_date||'',r.merchant||'',li.qty,li.desc,(+li.price||0).toFixed(2),li.person||''])));
+  }else{
+    rows.push(['Date','Merchant','Person','Items','Tax','Tip','Total']);
+    SAVED.forEach(r=>{
+      if((r.people||[]).length) r.people.forEach(p=>rows.push([r.receipt_date||'',r.merchant||'',p.name,(+p.items_total||0).toFixed(2),(+p.tax||0).toFixed(2),(+p.tip||0).toFixed(2),(+p.total||0).toFixed(2)]));
+      else rows.push([r.receipt_date||'',r.merchant||'','(unassigned)',(+r.subtotal||0).toFixed(2),(+r.tax||0).toFixed(2),(+r.tip||0).toFixed(2),(+r.total||0).toFixed(2)]);
+    });
+  }
+  dl(`receipts_${kind}_${new Date().toISOString().slice(0,10)}.csv`, rows.map(r=>r.map(csvCell).join(',')).join('\n'));
+}
+</script>
+</body>
+</html>

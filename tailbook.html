@@ -1,4 +1,1785 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Aero Analytica</title>
-<script>location.replace('/tailbook/' + location.search + location.hash);</script>
-<meta http-equiv="refresh" content="0;url=/tailbook/">
-</head><body style="background:#2e2e2e;color:#888;font-family:Helvetica,sans-serif;padding:40px">Moved to <a href="/tailbook/" style="color:#DE9020">aero-analytica.com/tailbook/</a></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tailbook — CRM</title>
+<link href="https://fonts.googleapis.com/css2?family=B612:ital,wght@0,400;0,700;1,400&family=B612+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.1/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://rabjbhtoufrrfznpztjt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_q-VtpKa9-S_uTXU3ZmrLDw_6dwIz7Ch';
+window._sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+window._authReady = (async () => {
+  const { data: { session } } = await window._sb.auth.getSession();
+  if (!session) { window.location.href = 'index.html'; return null; }
+  window._uid = session.user.id;
+  window._userEmail = session.user.email;
+  document.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('user-email');
+    if (el) el.textContent = session.user.email;
+  });
+  return session;
+})();
+async function signOut() {
+  await window._sb.auth.signOut();
+  window.location.href = 'index.html';
+}
+</script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#2e2e2e;font-family:'B612',system-ui,sans-serif}
+  .topbar{display:flex;align-items:center;gap:4px;padding:8px 14px;background:#353535;border-bottom:1px solid #444}
+  .topbar .brand{color:#d8d8d8;font-size:13px;font-weight:700;letter-spacing:.5px;margin-right:auto}
+  .topbar .brand small{color:#DE9020;font-weight:400;margin-left:8px;font-family:'B612 Mono',monospace;font-size:10px}
+  .topbar span#user-email{font-size:11px;color:#777;margin-right:6px}
+  .topbar a{font-size:12px;color:#888;cursor:pointer;text-decoration:none;padding:5px 11px;border:1px solid #444;border-radius:6px;transition:background .15s}
+  .topbar a:hover{background:#444;color:#d8d8d8}
+  #root{min-height:calc(100vh - 44px)}
+  .loading{padding:60px;text-align:center;color:#8f8f8f;font-size:13px}
+  /* settings modal — Tailbook palette */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(21,32,43,.45);z-index:200;align-items:center;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal{background:#353535;border:1px solid #444;border-radius:12px;padding:28px;width:100%;max-width:340px;font-family:'B612',system-ui,sans-serif}
+  .modal h2{font-size:15px;color:#d8d8d8;margin:0 0 18px}
+  .modal .field{margin-bottom:12px}
+  .modal .field label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:6px}
+  .modal .field input{width:100%;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:7px;padding:9px 11px;color:#d8d8d8;font-size:13px;font-family:'B612 Mono',monospace}
+  .modal .field input:focus{outline:none;border-color:#DE9020}
+  .modal-btns{display:flex;gap:8px;margin-top:14px}
+  .modal-btns button{flex:1;padding:9px;border-radius:7px;border:none;font-size:13px;font-family:'B612',sans-serif;cursor:pointer}
+  .modal-save{background:#505050;color:#e0e0e0}
+  .modal-save:hover:not(:disabled){background:#5c5c5c}
+  .modal-cancel{background:transparent;color:#888;border:1px solid #444 !important}
+  .modal-msg{font-size:12px;margin-top:10px;text-align:center;min-height:16px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="brand">TAILBOOK <small>business aviation CRM</small></span>
+  <span id="user-email"></span>
+  <a href="hub.html" title="Back to hub">&#8962; Hub</a>
+  <a onclick="openSettings()" title="Settings">&#9881;</a>
+  <a onclick="signOut()" title="Sign out">&#9211;</a>
+</div>
+<div id="root"><div class="loading">Loading Tailbook&#8230;</div></div>
+
+<div class="modal-overlay" id="settings-modal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <h2>&#9881; Settings</h2>
+    <div class="field">
+      <label>New Password</label>
+      <input type="password" id="cp-new" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Confirm Password</label>
+      <input type="password" id="cp-confirm" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Anthropic API Key <span style="text-transform:none;letter-spacing:0">(optional — Tailbook AI features)</span></label>
+      <input type="password" id="cp-apikey" placeholder="sk-ant-...">
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeSettings()">Cancel</button>
+      <button class="modal-save" id="cp-save" onclick="saveSettings()">Save</button>
+    </div>
+    <div class="modal-msg" id="cp-msg"></div>
+  </div>
+</div>
+<script>
+function openSettings() {
+  document.getElementById('settings-modal').classList.add('open');
+  document.getElementById('cp-new').value = '';
+  document.getElementById('cp-confirm').value = '';
+  document.getElementById('cp-apikey').value = localStorage.getItem('tb_anthropic_key') || '';
+  document.getElementById('cp-msg').textContent = '';
+}
+function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('settings-modal').classList.contains('open')) return;
+  if (e.key === 'Escape') closeSettings();
+  if (e.key === 'Enter') saveSettings();
+});
+async function saveSettings() {
+  const pw1 = document.getElementById('cp-new').value;
+  const pw2 = document.getElementById('cp-confirm').value;
+  const key = document.getElementById('cp-apikey').value.trim();
+  const msgEl = document.getElementById('cp-msg');
+  const btn = document.getElementById('cp-save');
+  msgEl.style.color = '#C2402A';
+
+  if (key) localStorage.setItem('tb_anthropic_key', key);
+  else localStorage.removeItem('tb_anthropic_key');
+
+  if (pw1 || pw2) {
+    if (pw1.length < 8) { msgEl.textContent = 'Password must be at least 8 characters.'; return; }
+    if (pw1 !== pw2)    { msgEl.textContent = 'Passwords do not match.'; return; }
+    btn.disabled = true; btn.textContent = 'Saving\u2026';
+    const { error } = await window._sb.auth.updateUser({ password: pw1 });
+    btn.disabled = false; btn.textContent = 'Save';
+    if (error) { msgEl.textContent = error.message; return; }
+  }
+  msgEl.style.color = '#2F7D5B';
+  msgEl.textContent = 'Saved.';
+  setTimeout(closeSettings, 900);
+}
+</script>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+
+/* ── Tailbook — business aviation CRM ─────────────────────────────
+   Palette: dark #2e2e2e · panel #353535 · text #d8d8d8 · slate #8f8f8f
+            annunciator amber #DE9020 · advisory green #6abf7a · caution #df7a6e
+   Type: B612 (Airbus cockpit face) · B612 Mono for registrations/data
+─────────────────────────────────────────────────────────────────── */
+
+const C = {
+  bg: "#2e2e2e", panel: "#353535", panel2: "#2a2a2a",
+  ink: "#d8d8d8", slate: "#8f8f8f", line: "#444",
+  fill: "#505050", bar: "#262626",
+  amber: "#DE9020", amberSoft: "#3a2f1c",
+  green: "#6abf7a", greenSoft: "#243a2c", red: "#df7a6e",
+  navySoft: "#3d3d3d",
+};
+const FONT = "'B612', system-ui, sans-serif";
+const MONO = "'B612 Mono', ui-monospace, monospace";
+
+
+/* ── airframe catalog — makes & models, current production through legacy ── */
+const AIRCRAFT_CATALOG = {
+  "Gulfstream": ["G800", "G700", "G650ER", "G650", "G600", "G500 (2018+)", "G550", "G450", "G400", "G350", "G280", "G200", "G150", "G100", "GV", "GIV-SP", "GIV", "GIII"],
+  "Bombardier": ["Global 8000", "Global 7500", "Global 6500", "Global 6000", "Global 5500", "Global 5000", "Global Express XRS", "Global Express", "Challenger 3500", "Challenger 650", "Challenger 605", "Challenger 604", "Challenger 601", "Challenger 600", "Challenger 350", "Challenger 300", "Challenger 850"],
+  "Learjet": ["75 Liberty", "75", "70", "60XR", "60", "45XR", "45", "40XR", "40", "36A", "35A", "31A"],
+  "Cessna Citation": ["Ascend", "Longitude", "Latitude", "Sovereign+", "Sovereign", "X+", "X", "XLS Gen2", "XLS+", "XLS", "Excel", "CJ4 Gen3", "CJ4 Gen2", "CJ4", "CJ3 Gen2", "CJ3+", "CJ3", "CJ2+", "CJ2", "CJ1+", "CJ1", "M2 Gen2", "M2", "Mustang", "Encore+", "Encore", "Ultra", "Bravo", "VII", "V", "S/II", "III", "II"],
+  "Dassault Falcon": ["10X", "8X", "7X", "6X", "900LX", "900EX EASy", "900EX", "900DX", "900C", "900B", "900", "2000LXS", "2000LX", "2000EX EASy", "2000EX", "2000S", "2000", "50EX", "50", "20", "10"],
+  "Embraer": ["Praetor 600", "Praetor 500", "Phenom 300E", "Phenom 300", "Phenom 100EX", "Phenom 100EV", "Phenom 100", "Legacy 650E", "Legacy 650", "Legacy 600", "Legacy 500", "Legacy 450", "Lineage 1000E", "Lineage 1000"],
+  "Hawker / Beechjet": ["Hawker 4000", "Hawker 1000", "Hawker 900XP", "Hawker 850XP", "Hawker 800XP", "Hawker 800A", "Hawker 750", "Hawker 400XP", "Beechjet 400A", "Premier IA", "Premier I"],
+  "HondaJet": ["Echelon", "Elite II", "Elite S", "Elite", "HA-420"],
+  "Pilatus": ["PC-24", "PC-12 NGX", "PC-12 NG", "PC-12"],
+  "Cirrus": ["Vision Jet G2+", "Vision Jet G2", "Vision Jet G1"],
+  "SyberJet": ["SJ30i", "SJ30"],
+  "Eclipse": ["550", "500"],
+  "Boeing BBJ": ["BBJ 737-7", "BBJ 737-8", "BBJ", "BBJ2", "BBJ3", "BBJ 787-8", "BBJ 787-9", "BBJ 777X"],
+  "Airbus ACJ": ["ACJ TwoTwenty", "ACJ319neo", "ACJ320neo", "ACJ318", "ACJ319", "ACJ320", "ACJ330neo", "ACJ350 XWB"],
+  "Beechcraft King Air": ["360", "360ER", "350i", "350", "260", "250", "B200", "C90GTx"],
+  "Daher": ["TBM 960", "TBM 940", "TBM 930", "TBM 910", "TBM 900", "TBM 850", "TBM 700", "Kodiak 900", "Kodiak 100"],
+  "Piper": ["M700 Fury", "M600 SLS", "M600", "M500", "Meridian"],
+  "Epic": ["E1000 GX", "E1000"],
+};
+
+const PIPELINES = {
+  aircraft: {
+    label: "Aircraft",
+    unitName: "aircraft",
+    stages: ["Sourcing", "Valuation", "Listed", "Under LOI", "Pre-buy", "Closing", "Sold"],
+    fields: [
+      { k: "reg", label: "Registration", ph: "N450GD", mono: true, req: true },
+      { k: "make", label: "Make", ph: "Gulfstream", select: "make", req: true },
+      { k: "model", label: "Model", ph: "G450", select: "model", req: true },
+      { k: "year", label: "Year", ph: "2014" },
+      { k: "serial", label: "Serial no.", ph: "4301", mono: true },
+      { k: "ttaf", label: "Total time (TTAF)", ph: "3,250 hrs" },
+      { k: "landings", label: "Landings", ph: "2,752" },
+      { k: "ask", label: "Asking price", ph: "$16,500,000" },
+      { k: "base", label: "Home base / location", ph: "KTEB", mono: true },
+      { k: "owner", label: "Owner / broker", ph: "Marta Keller" },
+      { k: "email", label: "Contact email", ph: "marta@example.com" },
+      { k: "phone", label: "Contact phone", ph: "+1 410 555 0123" },
+      { k: "avionics", label: "Avionics", ph: "Honeywell Primus EPIC EASy II" },
+      { k: "wifi", label: "WiFi", ph: "Gogo AVANCE L5" },
+      { k: "engines", label: "Engine program", ph: "P&W ESP Gold" },
+      { k: "paintYear", label: "Paint year", ph: "2019" },
+      { k: "interiorYear", label: "Interior year", ph: "2023" },
+    ],
+    title: (r) => r.make ? `${r.make} ${r.model || ""}`.trim() : (r.model || "Aircraft"),
+    placard: (r) => r.reg,
+    sub: (r) => [r.year, r.ttaf, r.base].filter(Boolean).join(" · "),
+    money: (r) => r.ask,
+  },
+  deals: {
+    label: "Acquisitions",
+    unitName: "deal",
+    stages: ["New lead", "Qualified", "Requirements", "Matched", "LOI sent", "Contract", "Closed"],
+    fields: [
+      { k: "client", label: "Client", ph: "Daniel Osei", req: true },
+      { k: "company", label: "Company", ph: "Osei Capital" },
+      { k: "email", label: "Email", ph: "daniel@example.com" },
+      { k: "requirement", label: "Requirement", ph: "Super-mid, 9 pax, coast-to-coast" },
+      { k: "budget", label: "Budget", ph: "$12–14M" },
+    ],
+    title: (r) => r.client || "Deal",
+    placard: (r) => r.company,
+    sub: (r) => r.requirement,
+    money: (r) => r.budget,
+  },
+  charter: {
+    label: "Charter",
+    unitName: "trip",
+    stages: ["Inquiry", "Quoted", "Negotiating", "Booked", "Flown"],
+    fields: [
+      { k: "client", label: "Client", ph: "Priya Nair", req: true },
+      { k: "email", label: "Email", ph: "priya@example.com" },
+      { k: "route", label: "Route", ph: "KTEB → EGGW", mono: true },
+      { k: "date", label: "Departure", ph: "2026-07-02" },
+      { k: "pax", label: "Passengers", ph: "6" },
+      { k: "quote", label: "Quote", ph: "$78,000" },
+    ],
+    title: (r) => r.client || "Trip",
+    placard: (r) => r.route,
+    sub: (r) => [r.date, r.pax && `${r.pax} pax`].filter(Boolean).join(" · "),
+    money: (r) => r.quote,
+  },
+};
+
+const CONTACT_FIELDS = [
+  { k: "name", label: "Name", ph: "Marta Keller", req: true },
+  { k: "role", label: "Role", ph: "Owner / Buyer / Charter / MRO" },
+  { k: "company", label: "Company", ph: "Keller Aviation Holdings" },
+  { k: "email", label: "Email", ph: "marta@example.com" },
+  { k: "phone", label: "Phone", ph: "+1 201 555 0148" },
+];
+
+const STORE_KEY = "tailbook:v1";
+
+/* ── view preferences, column layout, custom fields ── */
+const PIPE_KEYS = Object.keys(PIPELINES);
+function withPrefs(d) {
+  const p = d.prefs || {};
+  const per = (fill) => Object.fromEntries(PIPE_KEYS.map((t) => [t, fill()]));
+  return {
+    ...d,
+    links: d.links || [],
+    stages: { ...Object.fromEntries(PIPE_KEYS.map((t) => [t, PIPELINES[t].stages])), ...(d.stages || {}) },
+    prefs: {
+      view: { ...per(() => "board"), ...(p.view || {}) },
+      customFields: { ...per(() => []), ...(p.customFields || {}) },
+      columns: { ...per(() => ({ order: null, hidden: [] })), ...(p.columns || {}) },
+    },
+  };
+}
+function linksFor(data, kind, id) {
+  // kind: 'aircraft' → links where aircraftId===id; otherwise refType===kind && refId===id
+  return (data.links || []).filter((l) => kind === "aircraft" ? l.aircraftId === id : (l.refType === kind && l.refId === id));
+}
+function getFields(type, data) {
+  return [...PIPELINES[type].fields, ...data.prefs.customFields[type].map((f) => ({ ...f, custom: true }))];
+}
+function orderedFields(type, data) {
+  const all = getFields(type, data);
+  const ord = data.prefs.columns[type].order;
+  if (!ord) return all;
+  const map = Object.fromEntries(all.map((f) => [f.k, f]));
+  const seq = ord.filter((k) => map[k]).map((k) => map[k]);
+  all.forEach((f) => { if (!ord.includes(f.k)) seq.push(f); });
+  return seq;
+}
+
+function getStages(type, data) {
+  const s = data && data.stages && data.stages[type];
+  return s && s.length ? s : PIPELINES[type].stages;
+}
+
+/* ── CSV helpers ── */
+const csvEsc = (v) => { v = v == null ? "" : String(v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+function toCSV(rows, cols) {
+  return [cols.map((c) => csvEsc(c.label)).join(","), ...rows.map((r) => cols.map((c) => csvEsc(r[c.k])).join(","))].join("\n");
+}
+function parseCSV(text) {
+  const rows = []; let row = [], cur = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else cur += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === ",") { row.push(cur); cur = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cur); cur = "";
+      if (row.length > 1 || row[0] !== "") rows.push(row);
+      row = [];
+    } else cur += ch;
+  }
+  row.push(cur);
+  if (row.length > 1 || row[0] !== "") rows.push(row);
+  return rows;
+}
+function downloadText(name, text) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+let DRAG = null;    // record being dragged on the kanban
+let DRAGCOL = null; // column key being dragged on the list view
+
+const SEED = {
+  aircraft: [
+    { id: "a1", stage: "Listed", reg: "N450GD", make: "Gulfstream", model: "G450", year: "2014", serial: "4301", ttaf: "3,250 hrs", ask: "$16,500,000", base: "KTEB", owner: "Marta Keller", email: "marta.keller@example.com" },
+    { id: "a2", stage: "Pre-buy", reg: "N88XL", make: "Cessna Citation", model: "XLS+", year: "2017", serial: "560-6231", ttaf: "2,110 hrs", ask: "$9,200,000", base: "KPDK", owner: "Tom Reyes", email: "tom.reyes@example.com" },
+    { id: "a3", stage: "Sourcing", reg: "N302PE", make: "Embraer", model: "Phenom 300E", year: "2021", serial: "50500612", ttaf: "980 hrs", ask: "$11,400,000", base: "KSDL", owner: "Aviate Partners", email: "fleet@example.com" },
+    { id: "a4", stage: "Under LOI", reg: "N735CL", make: "Bombardier", model: "Challenger 350", year: "2019", serial: "20735", ttaf: "1,640 hrs", ask: "$18,900,000", base: "KHOU", owner: "G. Whitfield", email: "gw@example.com" },
+  ],
+  deals: [
+    { id: "d1", stage: "Requirements", client: "Daniel Osei", company: "Osei Capital", email: "daniel@example.com", requirement: "Super-mid, 9 pax, coast-to-coast", budget: "$12–14M" },
+    { id: "d2", stage: "LOI sent", client: "Hana Suzuki", company: "Kestrel Group", email: "hana@example.com", requirement: "Large-cabin, transpacific", budget: "$38M" },
+    { id: "d3", stage: "New lead", client: "Marc Dubois", company: "—", email: "marc@example.com", requirement: "First aircraft, light jet", budget: "$6M" },
+  ],
+  charter: [
+    { id: "c1", stage: "Quoted", client: "Priya Nair", email: "priya@example.com", route: "KTEB → EGGW", date: "2026-07-02", pax: "6", quote: "$78,000" },
+    { id: "c2", stage: "Booked", client: "Leo Marchetti", email: "leo@example.com", route: "KVNY → KASE", date: "2026-06-19", pax: "4", quote: "$21,500" },
+  ],
+  contacts: [
+    { id: "p1", name: "Marta Keller", role: "Owner", company: "Keller Aviation Holdings", email: "marta.keller@example.com", phone: "+1 201 555 0148" },
+    { id: "p2", name: "Daniel Osei", role: "Buyer", company: "Osei Capital", email: "daniel@example.com", phone: "+1 646 555 0107" },
+    { id: "p3", name: "Priya Nair", role: "Charter client", company: "Nair Family Office", email: "priya@example.com", phone: "+44 20 7946 0921" },
+  ],
+  activity: {},
+  links: [{ id: "l1", aircraftId: "a4", refType: "deals", refId: "d2" }],
+};
+
+/* ── persistence ── */
+async function loadStore() {
+  try {
+    const { data: row, error } = await window._sb
+      .from("tailbook_store").select("data").eq("user_id", window._uid).maybeSingle();
+    if (!error && row && row.data && Object.keys(row.data).length) return row.data;
+  } catch (e) { console.error("Cloud load failed", e); }
+  try {
+    const local = localStorage.getItem(STORE_KEY);
+    if (local) return JSON.parse(local);
+  } catch (e) {}
+  return null;
+}
+async function saveStore(data) {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch (e) {}
+  try {
+    const { error } = await window._sb.from("tailbook_store")
+      .upsert({ user_id: window._uid, data, updated_at: new Date().toISOString() });
+    if (error) console.error("Cloud save failed", error.message);
+  } catch (e) { console.error("Cloud save failed", e); }
+}
+
+/* ── Claude (optional — needs an API key saved under the gear menu) ── */
+async function askClaude(prompt, withWorkspace = true) {
+  const apiKey = localStorage.getItem("tb_anthropic_key");
+  if (!apiKey) throw new Error("AI features need an Anthropic API key — add one under the gear menu (top right).");
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1000,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || "Request failed");
+  return (data.content || [])
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("\n")
+    .trim();
+}
+
+function recordContext(type, r, fields, data) {
+  const p = PIPELINES[type];
+  const lines = fields.map((f) => r[f.k] ? `${f.label}: ${r[f.k]}` : null).filter(Boolean);
+  let related = "";
+  if (data) {
+    if (type === "aircraft") {
+      const refs = linksFor(data, "aircraft", r.id).map((l) => {
+        const rec = (data[l.refType] || []).find((x) => x.id === l.refId);
+        return rec ? `- ${PIPELINES[l.refType].label}: ${PIPELINES[l.refType].title(rec)} (stage: ${rec.stage})` : null;
+      }).filter(Boolean);
+      if (refs.length) related = `\nRelated deals/trips:\n${refs.join("\n")}`;
+      if (r.sales && r.sales.length) related += `\nSale history: ${r.sales.map((sl) => `${sl.price || "undisclosed"} on ${sl.date}${sl.buyer ? " to " + sl.buyer : ""}`).join("; ")}`;
+    } else {
+      const refs = linksFor(data, type, r.id).map((l) => {
+        const ac = data.aircraft.find((a) => a.id === l.aircraftId);
+        return ac ? `- Aircraft: ${ac.model} ${ac.reg} (stage: ${ac.stage}${ac.offMarket ? ", off market" : ""}${ac.ask ? ", asking " + ac.ask : ""})` : null;
+      }).filter(Boolean);
+      if (refs.length) related = `\nLinked aircraft:\n${refs.join("\n")}`;
+    }
+  }
+  return `Record type: ${p.unitName}\nPipeline stage: ${r.stage}\n${lines.join("\n")}${related}`;
+}
+
+/* ── small parts ── */
+function SidePanel({ onClose, children, z = 50, width = 520, bg = C.bg }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.32)", zIndex: z }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        position: "absolute", top: 0, right: 0, bottom: 0, width: "100%", maxWidth: width,
+        background: bg, borderLeft: `1px solid ${C.line}`, boxShadow: "-10px 0 28px rgba(0,0,0,0.18)",
+        overflowY: "auto", animation: "tbSlideIn 0.18s ease-out",
+      }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Placard({ text }) {
+  if (!text) return null;
+  return (
+    <span style={{
+      fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
+      color: C.ink, background: "#2f2f2f", border: `1px solid ${C.line}`,
+      borderRadius: 3, padding: "2px 6px", whiteSpace: "nowrap",
+    }}>{text}</span>
+  );
+}
+
+function StageStrip({ stages, current }) {
+  const idx = stages.indexOf(current);
+  const last = idx === stages.length - 1;
+  return (
+    <div style={{ display: "flex", gap: 3 }} aria-hidden="true">
+      {stages.map((s, i) => (
+        <div key={s} style={{
+          flex: 1, height: 4, borderRadius: 2,
+          background: i < idx ? "#6b6b6b" : i === idx ? (last ? C.green : C.amber) : "#3d3d3d",
+        }} />
+      ))}
+    </div>
+  );
+}
+
+function Btn({ children, onClick, tone = "ghost", small, disabled, style, ...rest }) {
+  const tones = {
+    primary: { background: C.fill, color: "#fff", border: `1px solid ${C.fill}` },
+    amber: { background: C.amber, color: "#fff", border: `1px solid ${C.amber}` },
+    ghost: { background: C.panel2, color: C.ink, border: `1px solid ${C.line}` },
+    danger: { background: C.panel2, color: C.red, border: `1px solid ${C.line}` },
+  };
+  return (
+    <button onClick={onClick} disabled={disabled} {...rest} style={{
+      fontFamily: FONT, fontSize: small ? 12 : 13, fontWeight: 700,
+      padding: small ? "6px 10px" : "10px 14px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
+      opacity: disabled ? 0.5 : 1, ...tones[tone], ...style,
+    }}>{children}</button>
+  );
+}
+
+function ConfirmBtn({ children, confirmLabel = "Confirm?", onConfirm, style }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  return (
+    <Btn small tone="danger" style={armed ? { background: C.red, color: "#fff", borderColor: C.red, ...style } : style}
+      onClick={() => { if (armed) { setArmed(false); onConfirm(); } else setArmed(true); }}>
+      {armed ? confirmLabel : children}
+    </Btn>
+  );
+}
+
+function Field({ def, value, onChange, all }) {
+  const [custom, setCustom] = useState(false);
+  let options = null;
+  if (def.select === "make") options = Object.keys(AIRCRAFT_CATALOG);
+  if (def.select === "model") {
+    const make = (all && all.make) || "";
+    options = AIRCRAFT_CATALOG[make] || null; // unknown/custom make → free text
+  }
+  const inputStyle = {
+    width: "100%", boxSizing: "border-box", padding: "10px 12px",
+    border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14,
+    fontFamily: def.mono ? MONO : FONT, color: C.ink, background: C.panel2, outline: "none",
+  };
+  const showSelect = options && !custom && !(value && !options.includes(value));
+  return (
+    <label style={{ display: "block", marginBottom: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
+        <span>{def.label}{def.req ? " *" : ""}</span>
+        {options && (custom || (value && !options.includes(value))) && (
+          <button onClick={(e) => { e.preventDefault(); setCustom(false); onChange(def.k, ""); }}
+            style={{ background: "none", border: "none", color: C.amber, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, padding: 0 }}>
+            Back to list
+          </button>
+        )}
+      </div>
+      {showSelect ? (
+        <select value={value || ""} onChange={(e) => {
+          if (e.target.value === "__other__") { setCustom(true); onChange(def.k, ""); }
+          else onChange(def.k, e.target.value);
+        }} style={inputStyle}>
+          <option value="">{def.select === "model" && !(all && all.make) ? "Choose a make first…" : `Select ${def.label.toLowerCase()}…`}</option>
+          {options.map((o) => <option key={o} value={o}>{o}</option>)}
+          <option value="__other__">Other / not listed…</option>
+        </select>
+      ) : (
+        <input
+          value={value || ""}
+          placeholder={options ? `Custom ${def.label.toLowerCase()}` : def.ph}
+          onChange={(e) => onChange(def.k, e.target.value)}
+          style={inputStyle}
+        />
+      )}
+    </label>
+  );
+}
+
+/* ── card ── */
+function Card({ type, r, stages, onOpen }) {
+  const p = PIPELINES[type];
+  return (
+    <div onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onOpen(); }}
+      draggable
+      onDragStart={(e) => { DRAG = { type, r }; e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", r.id); } catch (err) {} }}
+      onDragEnd={() => { DRAG = null; }}
+      style={{
+        display: "block", width: "100%", textAlign: "left", background: C.panel,
+        border: `1px solid ${C.line}`, borderRadius: 8, padding: "12px 12px 10px",
+        marginBottom: 8, cursor: "grab", fontFamily: FONT,
+        boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+      }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.ink, lineHeight: 1.3 }}>{p.title(r)}</div>
+        <Placard text={p.placard(r)} />
+      </div>
+      {p.sub(r) ? <div style={{ fontSize: 12, color: C.slate, marginTop: 3 }}>{p.sub(r)}</div> : null}
+      {p.money(r) ? (
+        <div style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: C.ink, marginTop: 6 }}>{p.money(r)}</div>
+      ) : null}
+      <div style={{ marginTop: 10 }}><StageStrip stages={stages} current={r.stage} /></div>
+    </div>
+  );
+}
+
+/* ── kanban board ── */
+function Board({ type, records, stages, onOpen, onStage }) {
+  const p = PIPELINES[type];
+  const [overStage, setOverStage] = useState(null);
+  return (
+    <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "12px 14px 24px", WebkitOverflowScrolling: "touch" }}>
+      {stages.map((stage) => {
+        const items = records.filter((r) => r.stage === stage);
+        const final = stage === stages[stages.length - 1];
+        const isOver = overStage === stage;
+        return (
+          <div key={stage}
+            onDragOver={(e) => { if (DRAG && DRAG.type === type) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (overStage !== stage) setOverStage(stage); } }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverStage((s) => (s === stage ? null : s)); }}
+            onDrop={(e) => { e.preventDefault(); if (DRAG && DRAG.type === type && DRAG.r.stage !== stage) onStage(DRAG.r, stage); DRAG = null; setOverStage(null); }}
+            style={{
+              minWidth: 260, width: "76vw", maxWidth: 300, flexShrink: 0, borderRadius: 8,
+              outline: isOver ? `2px dashed ${C.amber}` : "none", outlineOffset: 2,
+              background: isOver ? C.amberSoft : "transparent", transition: "background 0.12s",
+            }}>
+            <div style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "8px 10px", borderRadius: 6, marginBottom: 8,
+              background: final ? C.greenSoft : C.navySoft,
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: final ? C.green : C.ink }}>{stage}</span>
+              <span style={{ fontFamily: MONO, fontSize: 12, color: C.slate }}>{items.length}</span>
+            </div>
+            {items.map((r) => <Card key={r.id} type={type} r={r} stages={stages} onOpen={() => onOpen(type, r.id)} />)}
+            {items.length === 0 && (
+              <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 14, fontSize: 12, color: C.slate, textAlign: "center" }}>
+                Drop {p.unitName}s here
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── detail sheet ── */
+function Detail({ type, record, fields, stages, data, activity, onClose, onUpdate, onDelete, onLog, onLinkToggle, onSale }) {
+  const [picker, setPicker] = useState(null); // 'deals' | 'charter' | 'aircraft'
+  const [sale, setSale] = useState(null);     // {date, price, buyer, dealId} while recording
+  const p = PIPELINES[type];
+  const [edit, setEdit] = useState({ ...record });
+  const [editing, setEditing] = useState(false);
+  const [note, setNote] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiBusy, setAiBusy] = useState(null); // 'email' | 'event' | 'ask'
+  const [aiMsg, setAiMsg] = useState(null);   // {ok, text}
+
+  const runAI = async (kind, prompt) => {
+    setAiBusy(kind); setAiMsg(null);
+    try {
+      const text = await askClaude(prompt);
+      setAiMsg({ ok: true, text });
+      onLog(record.id, kind === "email" ? "Email drafted via assistant" : kind === "event" ? "Meeting proposed via assistant" : `Assistant: ${text.slice(0, 120)}`);
+    } catch (e) {
+      setAiMsg({ ok: false, text: e.message });
+    }
+    setAiBusy(null);
+  };
+
+  const ctx = recordContext(type, record, fields, data);
+  const draftEmail = () => runAI("email",
+    `You are the assistant inside a business-aviation CRM. Write a concise, professional broker email to ${record.email || "the contact"} about this record, appropriate for the current pipeline stage (e.g. next steps, documents needed, or scheduling):\n\n${ctx}\n\nReply with a subject line and the email body, ready to copy.`);
+  const scheduleEvent = () => runAI("event",
+    `You are the assistant inside a business-aviation CRM. Propose a 1-hour meeting for the logical next step on this record (e.g. pre-buy inspection kickoff call, aircraft viewing, charter departure prep). Pick a sensible weekday morning within the next 7 days unless the record specifies a date.\n\n${ctx}\n\nReply with the proposed event title, date/time, and a 2-line agenda, ready to copy into a calendar invite.`);
+  const freeAsk = () => {
+    if (!aiPrompt.trim()) return;
+    runAI("ask", `You are the assistant inside a business-aviation CRM. Record context:\n\n${ctx}\n\nUser request: ${aiPrompt}`);
+    setAiPrompt("");
+  };
+
+  const acts = activity[record.id] || [];
+
+  return (
+    <SidePanel onClose={onClose} z={50} width={520}>
+      <div style={{ fontFamily: FONT, minHeight: "100%" }}>
+        {/* header */}
+        <div style={{ position: "sticky", top: 0, background: C.panel, borderBottom: `1px solid ${C.line}`, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, zIndex: 2 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.title(record)}</div>
+            <div style={{ marginTop: 3, display: "flex", alignItems: "center", gap: 8 }}>
+              <Placard text={p.placard(record)} />
+              {record.pdfPath ? <BrochureLink path={record.pdfPath} /> : null}
+            </div>
+          </div>
+          <Btn small onClick={onClose}>Close</Btn>
+        </div>
+
+        <div style={{ padding: 16 }}>
+          {/* stage selector */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 6 }}>Stage</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+            {stages.map((s) => {
+              const on = record.stage === s;
+              const final = s === stages[stages.length - 1];
+              return (
+                <button key={s} onClick={() => { onUpdate({ ...record, stage: s }); onLog(record.id, `Moved to ${s}`); }} style={{
+                  fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 10px", borderRadius: 6, cursor: "pointer",
+                  border: `1px solid ${on ? "transparent" : C.line}`,
+                  background: on ? (final ? C.green : C.amber) : "#fff",
+                  color: on ? "#fff" : C.ink,
+                }}>{s}</button>
+              );
+            })}
+          </div>
+
+          {/* fields */}
+          <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 14, marginBottom: 16 }}>
+            {!editing ? (
+              <>
+                {fields.map((f) => record[f.k] ? (
+                  <div key={f.k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", borderBottom: `1px solid #404040` }}>
+                    <span style={{ fontSize: 12, color: C.slate }}>{f.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, fontFamily: f.mono ? MONO : FONT, textAlign: "right" }}>{record[f.k]}</span>
+                  </div>
+                ) : null)}
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <Btn small onClick={() => { setEdit({ ...record }); setEditing(true); }}>Edit details</Btn>
+                  <ConfirmBtn confirmLabel="Tap again to delete" onConfirm={() => onDelete(record.id)}>Delete</ConfirmBtn>
+                </div>
+              </>
+            ) : (
+              <>
+                {fields.map((f) => <Field key={f.k} def={f} value={edit[f.k]} all={edit} onChange={(k, v) => setEdit((e) => ({ ...e, [k]: v, ...(k === "make" ? { model: "" } : {}) }))} />)}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Btn small tone="primary" onClick={() => { onUpdate(edit); setEditing(false); onLog(record.id, "Details updated"); }}>Save changes</Btn>
+                  <Btn small onClick={() => setEditing(false)}>Cancel</Btn>
+                </div>
+              </>
+            )}
+          </div>
+
+
+          {/* related records */}
+          <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 14, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10 }}>
+              {type === "aircraft" ? "Deals & trips on this airframe" : "Linked aircraft"}
+            </div>
+            {(() => {
+              const links = linksFor(data, type === "aircraft" ? "aircraft" : type, record.id);
+              const rows = links.map((l) => {
+                if (type === "aircraft") {
+                  const rec = (data[l.refType] || []).find((x) => x.id === l.refId);
+                  if (!rec) return null;
+                  return (
+                    <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: `1px solid #404040` }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{PIPELINES[l.refType].title(rec)}</div>
+                        <div style={{ fontSize: 11, color: C.slate }}>{PIPELINES[l.refType].label} · {rec.stage}</div>
+                      </div>
+                      <Btn small onClick={() => onLinkToggle(record.id, l.refType, l.refId)} style={{ padding: "5px 9px" }}>Unlink</Btn>
+                    </div>
+                  );
+                }
+                const ac = data.aircraft.find((a) => a.id === l.aircraftId);
+                if (!ac) return null;
+                return (
+                  <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: `1px solid #404040` }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{PIPELINES.aircraft.title(ac)} <Placard text={ac.reg} /></div>
+                      <div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>{ac.offMarket ? "Off market" : ac.stage}{ac.ask ? ` · ${ac.ask}` : ""}</div>
+                    </div>
+                    <Btn small onClick={() => onLinkToggle(ac.id, type, record.id)} style={{ padding: "5px 9px" }}>Unlink</Btn>
+                  </div>
+                );
+              }).filter(Boolean);
+              return rows.length ? rows : <div style={{ fontSize: 12, color: C.slate }}>Nothing linked yet.</div>;
+            })()}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+              {type === "aircraft" ? (
+                <>
+                  <Btn small onClick={() => setPicker("deals")}>+ Link acquisition deal</Btn>
+                  <Btn small onClick={() => setPicker("charter")}>+ Link charter trip</Btn>
+                </>
+              ) : (
+                <Btn small onClick={() => setPicker("aircraft")}>+ Link aircraft</Btn>
+              )}
+            </div>
+          </div>
+
+          {/* sale record — airframes keep their transaction history */}
+          {type === "aircraft" && (record.stage === "Sold" || (record.sales && record.sales.length > 0)) && (
+            <div style={{ background: C.panel, border: `1px solid ${C.green}`, borderRadius: 10, padding: 14, marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10 }}>Sale record</div>
+              {(record.sales || []).map((sl, i) => (
+                <div key={i} style={{ fontSize: 13, color: C.ink, padding: "5px 0", borderBottom: `1px solid #404040` }}>
+                  <span style={{ fontFamily: MONO, fontWeight: 700 }}>{sl.price || "Undisclosed"}</span> · {sl.date}{sl.buyer ? ` · ${sl.buyer}` : ""}
+                </div>
+              ))}
+              {record.stage === "Sold" && !record.offMarket && (
+                !sale ? (
+                  <div style={{ marginTop: 10 }}>
+                    <Btn small tone="primary" onClick={() => setSale({ date: new Date().toISOString().slice(0, 10), price: record.ask || "", buyer: "", dealId: "" })}>
+                      Record sale &amp; move to registry
+                    </Btn>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 10 }}>
+                    <Field def={{ k: "date", label: "Closing date", ph: "2026-06-11" }} value={sale.date} onChange={(k, v) => setSale((x) => ({ ...x, date: v }))} />
+                    <Field def={{ k: "price", label: "Sale price", ph: "$16,100,000" }} value={sale.price} onChange={(k, v) => setSale((x) => ({ ...x, price: v }))} />
+                    <Field def={{ k: "buyer", label: "Buyer", ph: "Osei Capital" }} value={sale.buyer} onChange={(k, v) => setSale((x) => ({ ...x, buyer: v }))} />
+                    {linksFor(data, "aircraft", record.id).some((l) => l.refType === "deals") && (
+                      <label style={{ display: "block", marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 4 }}>Closed via deal</div>
+                        <select value={sale.dealId} onChange={(e) => setSale((x) => ({ ...x, dealId: e.target.value }))}
+                          style={{ width: "100%", padding: "10px 12px", border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 14, fontFamily: FONT, background: C.panel2 }}>
+                          <option value="">— none —</option>
+                          {linksFor(data, "aircraft", record.id).filter((l) => l.refType === "deals").map((l) => {
+                            const d = data.deals.find((x) => x.id === l.refId);
+                            return d ? <option key={d.id} value={d.id}>{d.client}{d.company ? ` (${d.company})` : ""}</option> : null;
+                          })}
+                        </select>
+                      </label>
+                    )}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Btn small tone="primary" onClick={() => { onSale(record, sale); setSale(null); }}>Save sale</Btn>
+                      <Btn small onClick={() => setSale(null)}>Cancel</Btn>
+                    </div>
+                  </div>
+                )
+              )}
+              {record.offMarket && <div style={{ fontSize: 12, color: C.slate, marginTop: 8 }}>Off market — find this airframe in the Registry view, where you can re-list it.</div>}
+            </div>
+          )}
+
+          {/* Google Workspace assistant */}
+          <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 14, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10 }}>Google Workspace</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+              <Btn small tone="amber" disabled={!!aiBusy} onClick={draftEmail}>{aiBusy === "email" ? "Drafting…" : "Draft email in Gmail"}</Btn>
+              <Btn small tone="amber" disabled={!!aiBusy} onClick={scheduleEvent}>{aiBusy === "event" ? "Scheduling…" : "Add to Calendar"}</Btn>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Ask anything — e.g. draft a pre-buy checklist email"
+                style={{ flex: 1, padding: "9px 11px", border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, fontFamily: FONT, outline: "none" }} />
+              <Btn small disabled={!!aiBusy} onClick={freeAsk}>{aiBusy === "ask" ? "…" : "Run"}</Btn>
+            </div>
+            {aiMsg && (
+              <div style={{ marginTop: 10, padding: 10, borderRadius: 6, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap",
+                background: aiMsg.ok ? C.greenSoft : "#3d2a2a", color: aiMsg.ok ? C.green : C.red }}>
+                {aiMsg.text}
+              </div>
+            )}
+          </div>
+
+          {/* activity */}
+          <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10, padding: 14, marginBottom: 24 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10 }}>Activity</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Log a note"
+                style={{ flex: 1, padding: "9px 11px", border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, fontFamily: FONT, outline: "none" }} />
+              <Btn small onClick={() => { if (note.trim()) { onLog(record.id, note.trim()); setNote(""); } }}>Add</Btn>
+            </div>
+            {acts.length === 0 ? (
+              <div style={{ fontSize: 12, color: C.slate }}>Nothing logged yet — stage moves and notes will appear here.</div>
+            ) : acts.map((a, i) => (
+              <div key={i} style={{ padding: "7px 0", borderBottom: `1px solid #404040`, fontSize: 13, color: C.ink }}>
+                <span style={{ fontFamily: MONO, fontSize: 11, color: C.slate, marginRight: 8 }}>{a.ts}</span>{a.text}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {picker && (
+          <LinkPicker
+            title={picker === "aircraft" ? "Link aircraft" : picker === "deals" ? "Link acquisition deal" : "Link charter trip"}
+            items={picker === "aircraft" ? data.aircraft : data[picker]}
+            render={(r) => picker === "aircraft" ? `${PIPELINES.aircraft.title(r)} — ${r.reg}` : `${PIPELINES[picker].title(r)} · ${r.stage}`}
+            linkedIds={new Set(linksFor(data, type === "aircraft" ? "aircraft" : type, record.id).map((l) => type === "aircraft" ? l.refId : l.aircraftId))}
+            onToggle={(id) => type === "aircraft" ? onLinkToggle(record.id, picker, id) : onLinkToggle(id, type, record.id)}
+            onClose={() => setPicker(null)}
+          />
+        )}
+      </div>
+    </SidePanel>
+  );
+}
+
+
+/* ── list view ── */
+function EditableCell({ r, f, onCommit, onOpenRecord, primary }) {
+  const [editing, setEditing] = useState(false);
+  const [v, setV] = useState("");
+  let options = null;
+  if (f.select === "make") options = Object.keys(AIRCRAFT_CATALOG);
+  if (f.select === "model") options = AIRCRAFT_CATALOG[r.make] || null;
+  const commit = (val) => { setEditing(false); if ((val || "") !== (r[f.k] || "")) onCommit(r, f.k, val); };
+
+  if (primary) {
+    return (
+      <td style={tdStyle()}>
+        <button onClick={onOpenRecord} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: f.mono ? MONO : FONT, fontSize: 13, fontWeight: 700, color: C.ink, borderBottom: `2px solid ${C.amber}` }}>
+          {r[f.k] || "—"}
+        </button>
+      </td>
+    );
+  }
+  if (editing) {
+    return (
+      <td style={{ ...tdStyle(), padding: "4px 6px" }}>
+        {options ? (
+          <select autoFocus value={v} onChange={(e) => commit(e.target.value)} onBlur={() => setEditing(false)}
+            style={{ width: "100%", minWidth: 110, padding: "5px 6px", border: `1px solid ${C.amber}`, borderRadius: 5, fontSize: 12, fontFamily: FONT, background: C.panel2 }}>
+            <option value="">—</option>
+            {r[f.k] && !options.includes(r[f.k]) && <option value={r[f.k]}>{r[f.k]}</option>}
+            {options.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        ) : (
+          <input autoFocus value={v} onChange={(e) => setV(e.target.value)}
+            onBlur={() => commit(v)}
+            onKeyDown={(e) => { if (e.key === "Enter") commit(v); if (e.key === "Escape") setEditing(false); }}
+            style={{ width: "100%", minWidth: 90, boxSizing: "border-box", padding: "5px 7px", border: `1px solid ${C.amber}`, borderRadius: 5, fontSize: 12, fontFamily: f.mono ? MONO : FONT, outline: "none" }} />
+        )}
+      </td>
+    );
+  }
+  return (
+    <td onClick={() => { setV(r[f.k] || ""); setEditing(true); }}
+      style={{ ...tdStyle(), fontFamily: f.mono ? MONO : FONT, cursor: "text" }}>
+      {r[f.k] || <span style={{ color: "#6b6b6b" }}>—</span>}
+    </td>
+  );
+}
+
+function ListView({ type, records, stages, data, onOpen, onCellEdit, onStage, onColReorder }) {
+  const p = PIPELINES[type];
+  const hidden = new Set(data.prefs.columns[type].hidden);
+  const cols = orderedFields(type, data).filter((f) => !hidden.has(f.k));
+  const primaryKey = (PIPELINES[type].fields.find((f) => f.req) || cols[0] || {}).k;
+  const lastStage = stages[stages.length - 1];
+  return (
+    <div style={{ padding: "12px 14px 24px" }}>
+      <div style={{ fontSize: 11, color: C.slate, marginBottom: 8 }}>Tap any cell to edit in place · tap the underlined name to open the record</div>
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 10 }}>
+        <table style={{ borderCollapse: "collapse", width: "100%", fontFamily: FONT }}>
+          <thead>
+            <tr>
+              <th style={thStyle()}>Stage</th>
+              {cols.map((f) => (
+                <th key={f.k} draggable
+                  onDragStart={() => { DRAGCOL = f.k; }}
+                  onDragEnd={() => { DRAGCOL = null; }}
+                  onDragOver={(e) => { if (DRAGCOL && DRAGCOL !== f.k) e.preventDefault(); }}
+                  onDrop={(e) => { e.preventDefault(); if (DRAGCOL && DRAGCOL !== f.k) onColReorder(DRAGCOL, f.k); DRAGCOL = null; }}
+                  title="Drag to reorder column"
+                  style={{ ...thStyle(), cursor: "grab" }}>{f.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {records.map((r) => (
+              <tr key={r.id} style={{ borderTop: `1px solid #404040` }}>
+                <td style={{ ...tdStyle(), padding: "6px 8px" }}>
+                  <select value={r.stage} onChange={(e) => onStage(r, e.target.value)} style={{
+                    fontSize: 11, fontWeight: 700, padding: "4px 6px", borderRadius: 4, border: "none", cursor: "pointer", fontFamily: FONT,
+                    background: r.stage === lastStage ? C.greenSoft : C.navySoft,
+                    color: r.stage === lastStage ? C.green : C.ink,
+                  }}>
+                    {stages.map((st) => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                </td>
+                {cols.map((f) => (
+                  <EditableCell key={f.k} r={r} f={f} primary={f.k === primaryKey}
+                    onCommit={onCellEdit} onOpenRecord={() => onOpen(type, r.id)} />
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {records.length === 0 && (
+          <div style={{ padding: 18, fontSize: 13, color: C.slate, textAlign: "center" }}>No {p.unitName}s yet — add one with the + button.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+function thStyle() {
+  return { textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 700, color: C.slate,
+    letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap", borderBottom: `1px solid ${C.line}`, background: "#2f2f2f" };
+}
+function tdStyle() {
+  return { padding: "10px 12px", fontSize: 13, color: C.ink, whiteSpace: "nowrap", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" };
+}
+
+/* ── fleet registry — every airframe ever, by serial ── */
+function Registry({ data, onOpen, onRelist }) {
+  const sorted = [...data.aircraft].sort((a, b) => (a.offMarket === b.offMarket ? 0 : a.offMarket ? 1 : -1));
+  return (
+    <div style={{ padding: "12px 14px 24px" }}>
+      <div style={{ fontSize: 12, color: C.slate, marginBottom: 10 }}>
+        Every airframe stays on file by serial number — sold aircraft become comps and re-trade leads, never deleted.
+      </div>
+      {sorted.map((r) => {
+        const lastSale = r.sales && r.sales.length ? r.sales[0] : null;
+        return (
+          <div key={r.id} style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: 12, marginBottom: 8, fontFamily: FONT, opacity: r.offMarket ? 0.92 : 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+              <button onClick={() => onOpen("aircraft", r.id)} style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", fontFamily: FONT }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{PIPELINES.aircraft.title(r)}</div>
+                <div style={{ fontFamily: MONO, fontSize: 11, color: C.slate, marginTop: 2 }}>
+                  {r.reg}{r.serial ? ` · S/N ${r.serial}` : ""}
+                </div>
+              </button>
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
+                padding: "3px 8px", borderRadius: 4,
+                background: r.offMarket ? "#3a3a3a" : r.stage === "Sold" ? C.greenSoft : C.amberSoft,
+                color: r.offMarket ? C.slate : r.stage === "Sold" ? C.green : C.amber,
+              }}>{r.offMarket ? "Off market" : r.stage}</span>
+            </div>
+            {lastSale && (
+              <div style={{ fontSize: 12, color: C.slate, marginTop: 6 }}>
+                Last sale: <span style={{ fontFamily: MONO, fontWeight: 700, color: C.ink }}>{lastSale.price || "undisclosed"}</span> · {lastSale.date}{lastSale.buyer ? ` · ${lastSale.buyer}` : ""}
+                {r.sales.length > 1 ? ` · ${r.sales.length} sales on file` : ""}
+              </div>
+            )}
+            {r.offMarket && (
+              <div style={{ marginTop: 8 }}>
+                <Btn small tone="amber" onClick={() => onRelist(r)}>Re-list — start new sales cycle</Btn>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {data.aircraft.length === 0 && (
+        <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 18, fontSize: 13, color: C.slate, textAlign: "center" }}>No airframes on file yet.</div>
+      )}
+    </div>
+  );
+}
+
+/* ── link picker ── */
+function LinkPicker({ title, items, render, linkedIds, onToggle, onClose }) {
+  const [q, setQ] = useState("");
+  const filtered = items.filter((r) => !q.trim() || JSON.stringify(r).toLowerCase().includes(q.toLowerCase()));
+  return (
+    <SidePanel onClose={onClose} z={70} width={400} bg={C.panel}>
+      <div style={{ padding: 16, fontFamily: FONT }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.ink }}>{title}</div>
+          <Btn small onClick={onClose}>Done</Btn>
+        </div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…"
+          style={{ width: "100%", boxSizing: "border-box", padding: "9px 11px", border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, fontFamily: FONT, outline: "none", marginBottom: 10 }} />
+        {filtered.map((r) => {
+          const on = linkedIds.has(r.id);
+          return (
+            <button key={r.id} onClick={() => onToggle(r.id)} style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left",
+              padding: "10px 12px", marginBottom: 6, borderRadius: 8, cursor: "pointer", fontFamily: FONT,
+              border: `1px solid ${on ? C.amber : C.line}`, background: on ? C.amberSoft : "#fff",
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{render(r)}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: on ? C.amber : C.slate }}>{on ? "Linked ✓" : "Link"}</span>
+            </button>
+          );
+        })}
+        {filtered.length === 0 && <div style={{ fontSize: 12, color: C.slate, textAlign: "center", padding: 12 }}>Nothing matches.</div>}
+      </div>
+    </SidePanel>
+  );
+}
+
+/* ── column manager ── */
+function ColumnManager({ type, data, onClose, onToggle, onMove, onAddField, onRemoveField }) {
+  const cols = orderedFields(type, data);
+  const hidden = new Set(data.prefs.columns[type].hidden);
+  const [label, setLabel] = useState("");
+  return (
+    <SidePanel onClose={onClose} z={60} width={460} bg={C.panel}>
+      <div style={{ padding: 16, fontFamily: FONT }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.ink }}>Columns &amp; fields</div>
+          <Btn small onClick={onClose}>Done</Btn>
+        </div>
+        <div style={{ fontSize: 12, color: C.slate, marginBottom: 12 }}>
+          Reorder and show or hide columns in list view. Fields you add appear on cards' details and the new-record form too.
+        </div>
+        {cols.map((f, i) => {
+          const off = hidden.has(f.k);
+          return (
+            <div key={f.k} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: `1px solid #404040` }}>
+              <button onClick={() => onToggle(f.k)} aria-label={off ? `Show ${f.label}` : `Hide ${f.label}`} style={{
+                width: 38, height: 22, borderRadius: 11, border: "none", cursor: "pointer", position: "relative", flexShrink: 0,
+                background: off ? "#555" : C.green,
+              }}>
+                <span style={{ position: "absolute", top: 3, left: off ? 4 : 20, width: 16, height: 16, borderRadius: 8, background: C.ink, transition: "left 0.15s" }} />
+              </button>
+              <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: off ? C.slate : C.ink }}>
+                {f.label}{f.custom && <span style={{ fontFamily: MONO, fontSize: 10, color: C.amber, marginLeft: 6 }}>CUSTOM</span>}
+              </span>
+              <Btn small disabled={i === 0} onClick={() => onMove(f.k, -1)} style={{ padding: "5px 9px" }} aria-label={`Move ${f.label} left`}>←</Btn>
+              <Btn small disabled={i === cols.length - 1} onClick={() => onMove(f.k, 1)} style={{ padding: "5px 9px" }} aria-label={`Move ${f.label} right`}>→</Btn>
+              {f.custom && (
+                <ConfirmBtn confirmLabel="Sure?" onConfirm={() => onRemoveField(f.k)} style={{ padding: "5px 9px" }}>✕</ConfirmBtn>
+              )}
+            </div>
+          );
+        })}
+        <div style={{ display: "flex", gap: 8, marginTop: 14, paddingBottom: 8 }}>
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="New field name — e.g. Engine program"
+            style={{ flex: 1, padding: "9px 11px", border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, fontFamily: FONT, outline: "none" }} />
+          <Btn small tone="primary" disabled={!label.trim()} onClick={() => { onAddField(label.trim()); setLabel(""); }}>Add field</Btn>
+        </div>
+      </div>
+    </SidePanel>
+  );
+}
+
+/* ── add modal ── */
+function AddModal({ type, fields, onClose, onCreate }) {
+  const isContact = type === "contacts";
+  const defs = isContact ? CONTACT_FIELDS : fields;
+  const [vals, setVals] = useState({});
+  const canSave = defs.filter((d) => d.req).every((d) => (vals[d.k] || "").trim());
+  return (
+    <SidePanel onClose={onClose} z={60} width={460} bg={C.panel}>
+      <div style={{ padding: 16, fontFamily: FONT }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 12 }}>
+          {isContact ? "New contact" : `New ${PIPELINES[type].unitName}`}
+        </div>
+        {defs.map((d) => <Field key={d.k} def={d} value={vals[d.k]} all={vals} onChange={(k, v) => setVals((s) => ({ ...s, [k]: v, ...(k === "make" ? { model: "" } : {}) }))} />)}
+        <div style={{ display: "flex", gap: 8, marginTop: 6, paddingBottom: 8 }}>
+          <Btn tone="primary" disabled={!canSave} onClick={() => onCreate(vals)}>Create</Btn>
+          <Btn onClick={onClose}>Cancel</Btn>
+        </div>
+      </div>
+    </SidePanel>
+  );
+}
+
+/* ── contacts ── */
+function Contacts({ contacts, onDelete }) {
+  return (
+    <div style={{ padding: "12px 14px 24px" }}>
+      {contacts.length === 0 && (
+        <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 18, fontSize: 13, color: C.slate, textAlign: "center" }}>
+          No contacts yet — add owners, buyers, and operators with the + button.
+        </div>
+      )}
+      {contacts.map((c) => (
+        <div key={c.id} style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: 12, marginBottom: 8, fontFamily: FONT }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{c.name}</div>
+              <div style={{ fontSize: 12, color: C.slate, marginTop: 2 }}>{[c.role, c.company].filter(Boolean).join(" · ")}</div>
+            </div>
+            <ConfirmBtn confirmLabel="Tap again" onConfirm={() => onDelete(c.id)}>Remove</ConfirmBtn>
+          </div>
+          {(c.email || c.phone) && (
+            <div style={{ fontFamily: MONO, fontSize: 12, color: C.ink, marginTop: 8 }}>
+              {[c.email, c.phone].filter(Boolean).join("  ·  ")}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── app ── */
+function BrochureLink({ path }) {
+  const [busy, setBusy] = useState(false);
+  const openPdf = async (e) => {
+    e.stopPropagation();
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { data, error } = await window._sb.storage.from("brochures").createSignedUrl(path, 3600);
+      if (error) throw error;
+      window.open(data.signedUrl, "_blank", "noopener");
+    } catch (err) { alert("Couldn't open brochure: " + (err.message || err)); }
+    setBusy(false);
+  };
+  return (
+    <button onClick={openPdf} style={{
+      fontFamily: FONT, fontSize: 11, fontWeight: 700, color: C.amber, background: C.amberSoft,
+      border: `1px solid ${C.amber}`, borderRadius: 5, padding: "3px 8px", cursor: "pointer", whiteSpace: "nowrap",
+    }}>{busy ? "Opening…" : "📄 Brochure"}</button>
+  );
+}
+
+function StageEditor({ type, stages, onClose, onSave }) {
+  const p = PIPELINES[type];
+  const [items, setItems] = useState(stages.map((s, i) => ({ id: "s" + i, name: s, orig: s })));
+  const [draft, setDraft] = useState("");
+  const rename = (id, name) => setItems((arr) => arr.map((x) => (x.id === id ? { ...x, name } : x)));
+  const move = (i, dir) => setItems((arr) => {
+    const j = i + dir; if (j < 0 || j >= arr.length) return arr;
+    const a = [...arr]; [a[i], a[j]] = [a[j], a[i]]; return a;
+  });
+  const removeItem = (id) => setItems((arr) => (arr.length > 1 ? arr.filter((x) => x.id !== id) : arr));
+  const add = () => { const n = draft.trim(); if (!n) return; setItems((arr) => [...arr, { id: "n" + Date.now().toString(36), name: n, orig: null }]); setDraft(""); };
+  const save = () => {
+    const names = []; const renameMap = {};
+    items.forEach((x) => {
+      const n = x.name.trim();
+      if (!n || names.includes(n)) return;
+      names.push(n);
+      if (x.orig && x.orig !== n) renameMap[x.orig] = n;
+    });
+    if (names.length) onSave(names, renameMap);
+  };
+  const inputStyle = { flex: 1, fontFamily: FONT, fontSize: 13, padding: "8px 10px", border: `1px solid ${C.line}`, borderRadius: 6, background: C.panel2, color: C.ink, minWidth: 0 };
+  const iconBtn = (disabled) => ({ fontFamily: FONT, fontSize: 13, width: 30, height: 32, border: `1px solid ${C.line}`, borderRadius: 6, background: C.panel2, color: disabled ? "#666666" : C.ink, cursor: disabled ? "default" : "pointer", padding: 0 });
+  return (
+    <SidePanel onClose={onClose} z={70} width={420}>
+      <div style={{ fontFamily: FONT, padding: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 4 }}>Edit stages — {p.label}</div>
+        <div style={{ fontSize: 12, color: C.slate, marginBottom: 14 }}>Rename, reorder, add, or remove. Records in a removed stage move to the first stage. The last stage is treated as “done”.</div>
+        {items.map((x, i) => (
+          <div key={x.id} style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center" }}>
+            <input value={x.name} onChange={(e) => rename(x.id, e.target.value)} style={inputStyle} aria-label={`Stage ${i + 1} name`} />
+            <button onClick={() => move(i, -1)} disabled={i === 0} style={iconBtn(i === 0)} aria-label="Move up">↑</button>
+            <button onClick={() => move(i, 1)} disabled={i === items.length - 1} style={iconBtn(i === items.length - 1)} aria-label="Move down">↓</button>
+            <button onClick={() => removeItem(x.id)} disabled={items.length <= 1} style={{ ...iconBtn(items.length <= 1), color: items.length <= 1 ? "#666666" : C.red }} aria-label="Remove stage">✕</button>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+          <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} placeholder="New stage name" style={inputStyle} />
+          <Btn small onClick={add}>Add</Btn>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+          <Btn tone="primary" onClick={save}>Save stages</Btn>
+          <Btn onClick={onClose}>Cancel</Btn>
+        </div>
+      </div>
+    </SidePanel>
+  );
+}
+
+function ScanImportModal({ state, onClose, onImport }) {
+  const loading = state === "loading";
+  const rows = loading ? [] : state.rows;
+  const [sel, setSel] = useState(null);
+  const selected = sel || Object.fromEntries(rows.map((r) => [r.id, true]));
+  const toggle = (id) => setSel({ ...selected, [id]: !selected[id] });
+  const chosen = rows.filter((r) => selected[r.id]);
+  const title = (r) => {
+    const b = r.data || {};
+    const bits = [b.make, b.model].filter((v) => v && v !== "Not listed").join(" ");
+    const reg = b.tail_number && b.tail_number !== "Not listed" ? b.tail_number : (b.serial_number && b.serial_number !== "Not listed" ? "SN " + b.serial_number : "");
+    return (bits || "Aircraft") + (reg ? " — " + reg : "");
+  };
+  return (
+    <SidePanel onClose={onClose} z={70} width={460}>
+      <div style={{ fontFamily: FONT, padding: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 4 }}>Import from brochure scanner</div>
+        <div style={{ fontSize: 12, color: C.slate, marginBottom: 14 }}>Aircraft sent over from the Brochure Extractor that haven’t been imported yet. Each arrives in the first pipeline stage with its brochure PDF attached.</div>
+        {loading && <div style={{ fontSize: 13, color: C.slate, padding: 20, textAlign: "center" }}>Checking the scanner…</div>}
+        {!loading && rows.length === 0 && (
+          <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 18, fontSize: 13, color: C.slate, textAlign: "center" }}>
+            Nothing waiting. In the Brochure Extractor, extract a PDF and press “Send to Tailbook”.
+          </div>
+        )}
+        {rows.map((r) => (
+          <label key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", marginBottom: 8, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!selected[r.id]} onChange={() => toggle(r.id)} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{title(r)}</div>
+              <div style={{ fontSize: 11, color: C.slate, fontFamily: MONO, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.source_file || "unknown file"} · {new Date(r.created_at).toLocaleDateString()}</div>
+            </div>
+          </label>
+        ))}
+        {!loading && rows.length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <Btn tone="primary" disabled={!chosen.length} onClick={() => onImport(chosen)}>Import {chosen.length || ""} aircraft</Btn>
+            <Btn onClick={onClose}>Cancel</Btn>
+          </div>
+        )}
+      </div>
+    </SidePanel>
+  );
+}
+
+function chipStyle() {
+  return { fontFamily: FONT, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 14,
+    border: `1px solid ${C.amber}`, background: C.amberSoft, color: C.amber, cursor: "pointer" };
+}
+
+function ActionsMenu({ tab, view, onScanner, onStages, onImport, onExport, onColumns }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  const items = [
+    tab === "aircraft" && { icon: "⇪", label: "Import from scanner", hint: "Brochure Extractor inbox", fn: onScanner },
+    tab !== "contacts" && { icon: "✎", label: "Edit stages", hint: "Rename, reorder, add", fn: onStages },
+    { icon: "⬆", label: "Import CSV", hint: "Spreadsheet → records", fn: onImport },
+    { icon: "⬇", label: "Export CSV", hint: "Records → spreadsheet", fn: onExport },
+    tab !== "contacts" && { icon: "▦", label: "Columns & fields", hint: "Show, hide, add custom", fn: onColumns },
+  ].filter(Boolean);
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button onClick={() => setOpen((o) => !o)} style={{
+        fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 7,
+        border: "none", cursor: "pointer", background: C.fill, color: "#fff", display: "flex", alignItems: "center", gap: 7,
+      }}>
+        Actions <span style={{ fontSize: 9, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s", color: C.amber }}>▼</span>
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 85, minWidth: 240,
+          background: C.bar, borderRadius: 10, padding: 6, boxShadow: "0 14px 34px rgba(0,0,0,0.4)",
+          border: "1px solid #444444",
+        }}>
+          {items.map((it) => (
+            <button key={it.label} onClick={() => { setOpen(false); it.fn(); }} style={{
+              display: "flex", alignItems: "center", gap: 11, width: "100%", padding: "10px 12px",
+              border: "none", borderRadius: 7, background: "transparent", cursor: "pointer",
+              fontFamily: FONT, textAlign: "left", color: "#EDF0F3",
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#2a2a2a"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+              <span style={{ color: C.amber, fontSize: 14, width: 18, textAlign: "center" }}>{it.icon}</span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 700 }}>{it.label}</span>
+                <span style={{ display: "block", fontSize: 10, color: "#8FA0B1", fontFamily: MONO, letterSpacing: "0.05em" }}>{it.hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilterPanel({ type, stages, fields, value, onChange, onClose }) {
+  const p = PIPELINES[type];
+  const sel = value.stages || [];
+  const texts = value.texts || {};
+  const toggleStage = (s) => onChange({ ...value, stages: sel.includes(s) ? sel.filter((x) => x !== s) : [...sel, s] });
+  const setText = (k, q) => onChange({ ...value, texts: { ...texts, [k]: q } });
+  const inputStyle = { width: "100%", boxSizing: "border-box", fontFamily: FONT, fontSize: 13, padding: "8px 10px", border: `1px solid ${C.line}`, borderRadius: 6, background: C.panel2, color: C.ink };
+  return (
+    <SidePanel onClose={onClose} z={70} width={400}>
+      <div style={{ fontFamily: FONT, padding: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.ink }}>Filters — {p.label}</div>
+          <Btn small onClick={onClose}>Done</Btn>
+        </div>
+        <div style={{ fontSize: 12, color: C.slate, marginBottom: 14 }}>Filters apply to the board and list views and stay on until cleared.</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 6 }}>Stage</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+          {stages.map((s) => {
+            const on = sel.includes(s);
+            return (
+              <button key={s} onClick={() => toggleStage(s)} style={{
+                fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 10px", borderRadius: 6, cursor: "pointer",
+                border: `1px solid ${on ? "transparent" : C.line}`, background: on ? C.amber : "#fff", color: on ? "#fff" : C.ink,
+              }}>{s}</button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 6 }}>Field contains</div>
+        {fields.map((f) => (
+          <div key={f.k} style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: C.slate, marginBottom: 4 }}>{f.label}</div>
+            <input value={texts[f.k] || ""} onChange={(e) => setText(f.k, e.target.value)} placeholder={f.ph || ""} style={inputStyle} />
+          </div>
+        ))}
+      </div>
+    </SidePanel>
+  );
+}
+
+function Tailbook() {
+  const [data, setData] = useState(null);
+  const [tab, setTab] = useState("aircraft");
+  const [open, setOpen] = useState(null); // {type, id}
+  const [adding, setAdding] = useState(false);
+  const [managing, setManaging] = useState(false);
+  const [query, setQuery] = useState("");
+  const [editingStages, setEditingStages] = useState(false);
+  const [scanImport, setScanImport] = useState(null); // null | 'loading' | {rows}
+  const [toast, setToast] = useState(null);
+  const [filtering, setFiltering] = useState(false);
+  const [filters, setFilters] = useState({}); // per tab: { stages: [], texts: {k: q} }
+  const fileRef = useRef(null);
+  const toastTimer = useRef(null);
+  const showToast = (text, ok = true) => {
+    clearTimeout(toastTimer.current);
+    setToast({ text, ok });
+    toastTimer.current = setTimeout(() => setToast(null), 3500);
+  };
+  const saveTimer = useRef(null);
+  const latest = useRef(null);
+  function dataRef() { return latest.current; }
+
+  useEffect(() => {
+    (async () => {
+      const stored = await loadStore();
+      const initial = withPrefs(stored || SEED);
+      latest.current = initial;
+      setData(initial);
+      if (!stored) saveStore(SEED);
+    })();
+  }, []);
+
+  const commit = (next) => {
+    latest.current = next;
+    setData(next);
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => saveStore(next), 350);
+  };
+
+  if (!data) {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, color: C.slate, fontSize: 14 }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap');`}</style>
+        Loading Tailbook…
+      </div>
+    );
+  }
+
+  const tabs = [...Object.entries(PIPELINES).map(([k, v]) => [k, v.label]), ["contacts", "Contacts"]];
+  const openRecord = open && data[open.type] ? data[open.type].find((r) => r.id === open.id) : null;
+
+  const log = (id, text) => {
+    const d = dataRef();
+    const ts = new Date().toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    const acts = { ...d.activity, [id]: [{ ts, text }, ...(d.activity[id] || [])].slice(0, 50) };
+    commit({ ...d, activity: acts });
+  };
+  const update = (type) => (rec) => commit({ ...dataRef(), [type]: dataRef()[type].map((r) => (r.id === rec.id ? rec : r)) });
+  const remove = (type) => (id) => { commit({ ...dataRef(), [type]: dataRef()[type].filter((r) => r.id !== id) }); setOpen(null); };
+  const create = (type) => (vals) => {
+    const id = `r${Date.now().toString(36)}`;
+    const rec = type === "contacts" ? { id, ...vals } : { id, stage: getStages(type, dataRef())[0], ...vals };
+    commit({ ...dataRef(), [type]: [rec, ...dataRef()[type]] });
+    setAdding(false);
+  };
+
+  const setPrefs = (fn) => { const d = dataRef(); commit({ ...d, prefs: fn(d.prefs) }); };
+  const setView = (t, v) => setPrefs((p) => ({ ...p, view: { ...p.view, [t]: v } }));
+  const toggleCol = (k) => setPrefs((p) => {
+    const c = p.columns[tab];
+    const hidden = c.hidden.includes(k) ? c.hidden.filter((x) => x !== k) : [...c.hidden, k];
+    return { ...p, columns: { ...p.columns, [tab]: { ...c, hidden } } };
+  });
+  const reorderCols = (fromK, toK) => setPrefs((p) => {
+    const keys = orderedFields(tab, dataRef()).map((f) => f.k);
+    const from = keys.indexOf(fromK), to = keys.indexOf(toK);
+    if (from === -1 || to === -1) return p;
+    keys.splice(to, 0, keys.splice(from, 1)[0]);
+    return { ...p, columns: { ...p.columns, [tab]: { ...p.columns[tab], order: keys } } };
+  });
+  const moveCol = (k, dir) => setPrefs((p) => {
+    const keys = orderedFields(tab, dataRef()).map((f) => f.k);
+    const i = keys.indexOf(k), j = i + dir;
+    if (j < 0 || j >= keys.length) return p;
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+    return { ...p, columns: { ...p.columns, [tab]: { ...p.columns[tab], order: keys } } };
+  });
+  const addField = (label) => setPrefs((p) => {
+    const k = "cf_" + label.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 24) + "_" + Date.now().toString(36).slice(-3);
+    return { ...p, customFields: { ...p.customFields, [tab]: [...p.customFields[tab], { k, label, ph: "" }] } };
+  });
+  const removeField = (k) => setPrefs((p) => ({
+    ...p,
+    customFields: { ...p.customFields, [tab]: p.customFields[tab].filter((f) => f.k !== k) },
+    columns: { ...p.columns, [tab]: { ...p.columns[tab], hidden: p.columns[tab].hidden.filter((x) => x !== k) } },
+  }));
+
+  const linkToggle = (aircraftId, refType, refId) => {
+    const d = dataRef();
+    const existing = d.links.find((l) => l.aircraftId === aircraftId && l.refType === refType && l.refId === refId);
+    const ac = d.aircraft.find((a) => a.id === aircraftId);
+    const rec = (d[refType] || []).find((r) => r.id === refId);
+    const label = ac && rec ? `${ac.reg} ↔ ${PIPELINES[refType].title(rec)}` : "records";
+    if (existing) {
+      commit({ ...d, links: d.links.filter((l) => l !== existing) });
+      log(aircraftId, `Unlinked ${label}`);
+    } else {
+      commit({ ...d, links: [...d.links, { id: `l${Date.now().toString(36)}`, aircraftId, refType, refId }] });
+      log(aircraftId, `Linked ${label}`);
+      if (refId !== aircraftId) log(refId, `Linked ${label}`);
+    }
+  };
+  const recordSale = (aircraft, sale) => {
+    const d = dataRef();
+    const entry = { date: sale.date, price: sale.price, buyer: sale.buyer, dealId: sale.dealId || null };
+    const updated = { ...aircraft, sales: [entry, ...(aircraft.sales || [])], offMarket: true };
+    commit({ ...d, aircraft: d.aircraft.map((a) => (a.id === aircraft.id ? updated : a)) });
+    log(aircraft.id, `Sold ${sale.price ? "for " + sale.price : ""} on ${sale.date}${sale.buyer ? " to " + sale.buyer : ""} — moved to registry`);
+    if (sale.dealId) log(sale.dealId, `Closed on ${PIPELINES.aircraft.title(aircraft)} ${aircraft.reg} (${sale.price || "undisclosed"})`);
+    setOpen(null);
+  };
+  const saveStages = (newStages, renameMap) => {
+    const d = dataRef();
+    const remap = (r) => {
+      let s = renameMap[r.stage] || r.stage;
+      if (!newStages.includes(s)) s = newStages[0];
+      return s === r.stage ? r : { ...r, stage: s };
+    };
+    commit({ ...d, stages: { ...d.stages, [tab]: newStages }, [tab]: d[tab].map(remap) });
+    setEditingStages(false);
+    showToast(`Stages updated for ${PIPELINES[tab].label}`);
+  };
+
+  const exportCSV = () => {
+    const isContacts = tab === "contacts";
+    const fields = isContacts ? CONTACT_FIELDS : orderedFields(tab, data);
+    const cols = isContacts ? fields : [{ k: "stage", label: "Stage" }, ...fields];
+    const rows = data[tab] || [];
+    downloadText(`tailbook_${tab}_${new Date().toISOString().slice(0, 10)}.csv`, toCSV(rows, cols));
+    showToast(`Exported ${rows.length} ${isContacts ? "contacts" : PIPELINES[tab].unitName + " rows"} to CSV`);
+  };
+  const importCSV = (file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const rows = parseCSV(String(reader.result));
+        if (rows.length < 2) throw new Error("no data rows found");
+        const isContacts = tab === "contacts";
+        const fields = isContacts ? CONTACT_FIELDS : getFields(tab, dataRef());
+        const headers = rows[0].map((h) => h.trim().toLowerCase());
+        const keyFor = headers.map((h) => {
+          if (h === "stage") return "stage";
+          const f = fields.find((fd) => fd.label.toLowerCase() === h || fd.k.toLowerCase() === h);
+          return f ? f.k : null;
+        });
+        if (!keyFor.some(Boolean)) throw new Error("no columns matched — use Export CSV as a template");
+        const stg = isContacts ? null : getStages(tab, dataRef());
+        const recs = rows.slice(1).filter((r) => r.some((c) => c && c.trim())).map((r, i) => {
+          const rec = { id: `r${Date.now().toString(36)}${i}` };
+          r.forEach((cell, ci) => { const k = keyFor[ci]; if (k && cell && cell.trim()) rec[k] = cell.trim(); });
+          if (!isContacts) rec.stage = stg.includes(rec.stage) ? rec.stage : stg[0];
+          return rec;
+        });
+        if (!recs.length) throw new Error("no usable rows");
+        commit({ ...dataRef(), [tab]: [...recs, ...dataRef()[tab]] });
+        showToast(`Imported ${recs.length} ${isContacts ? "contacts" : PIPELINES[tab].unitName + " records"} from ${file.name}`);
+      } catch (e) { showToast("Import failed: " + e.message, false); }
+    };
+    reader.onerror = () => showToast("Couldn't read that file", false);
+    reader.readAsText(file);
+  };
+
+  const openScanImport = async () => {
+    setScanImport("loading");
+    try {
+      const { data: rows, error } = await window._sb.from("brochure_imports")
+        .select("*").eq("imported", false).order("created_at", { ascending: false });
+      if (error) throw error;
+      setScanImport({ rows: rows || [] });
+    } catch (e) { showToast("Couldn't reach the scanner inbox: " + e.message, false); setScanImport(null); }
+  };
+  const importFromScanner = async (rows) => {
+    const d = dataRef();
+    const stg = getStages("aircraft", d);
+    const clean = (v) => (!v || v === "Not listed" || v === "N/A" ? "" : String(v));
+    const recs = rows.map((row, i) => {
+      const b = row.data || {};
+      const rec = {
+        id: `r${Date.now().toString(36)}${i}`, stage: stg[0],
+        reg: clean(b.tail_number), make: clean(b.make), model: clean(b.model),
+        year: clean(b.year), serial: clean(b.serial_number),
+        ttaf: clean(b.aftt), landings: clean(b.landings),
+        ask: clean(b.asking_price), base: clean(b.location),
+        owner: [clean(b.broker_name), clean(b.broker_company)].filter(Boolean).join(" — "),
+        email: clean(b.broker_email), phone: clean(b.broker_phone),
+        avionics: clean(b.avionics), wifi: clean(b.wifi),
+        paintYear: clean(b.paint_year), interiorYear: clean(b.interior_year),
+        pdfPath: row.pdf_path || "", sourceFile: row.source_file || "",
+      };
+      Object.keys(rec).forEach((k) => { if (rec[k] === "") delete rec[k]; });
+      return rec;
+    });
+    const ts = new Date().toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    const acts = { ...d.activity };
+    recs.forEach((r) => { acts[r.id] = [{ ts, text: `Imported from brochure scanner${r.sourceFile ? " — " + r.sourceFile : ""}` }]; });
+    commit({ ...d, aircraft: [...recs, ...d.aircraft], activity: acts });
+    setScanImport(null);
+    setTab("aircraft");
+    showToast(`Imported ${recs.length} aircraft from the scanner`);
+    try { await window._sb.from("brochure_imports").update({ imported: true }).in("id", rows.map((r) => r.id)); }
+    catch (e) { console.error("Couldn't mark scanner rows imported", e); }
+  };
+
+  const curFilters = filters[tab] || { stages: [], texts: {} };
+  const setTabFilters = (f) => setFilters({ ...filters, [tab]: f });
+  const activeFilterCount = tab === "contacts" ? 0
+    : (curFilters.stages || []).length + Object.values(curFilters.texts || {}).filter((v) => v && v.trim()).length;
+  const applyFilters = (recs) => {
+    if (tab === "contacts" || !activeFilterCount) return recs;
+    const stagesSel = curFilters.stages || [];
+    const texts = Object.entries(curFilters.texts || {}).filter(([, v]) => v && v.trim());
+    return recs.filter((r) => {
+      if (stagesSel.length && !stagesSel.includes(r.stage)) return false;
+      return texts.every(([k, q]) => String(r[k] || "").toLowerCase().includes(q.trim().toLowerCase()));
+    });
+  };
+
+  const searchResults = (() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const out = [];
+    const scan = (type, recs, titleFn, label) => {
+      for (const r of recs) {
+        if (out.length >= 14) return;
+        const hay = Object.values(r).filter((v) => typeof v === "string").join(" \u0000 ").toLowerCase();
+        if (hay.includes(q)) out.push({ type, r, title: titleFn(r) || "—", label });
+      }
+    };
+    PIPE_KEYS.forEach((t) => scan(t, data[t] || [], PIPELINES[t].title, PIPELINES[t].label));
+    scan("contacts", data.contacts || [], (r) => r.name, "Contact");
+    return out;
+  })();
+  const goToResult = (res) => {
+    setTab(res.type);
+    if (res.type !== "contacts") setOpen({ type: res.type, id: res.r.id });
+    setQuery("");
+  };
+
+  const setStage = (type) => (r, stage) => {
+    if (!stage || stage === r.stage) return;
+    update(type)({ ...r, stage });
+    log(r.id, `Moved to ${stage}`);
+  };
+  const cellEdit = (type) => (r, k, v) => {
+    update(type)({ ...r, [k]: v, ...(k === "make" ? { model: "" } : {}) });
+  };
+  const relist = (aircraft) => {
+    const d = dataRef();
+    const updated = { ...aircraft, offMarket: false, stage: getStages("aircraft", d)[0] };
+    commit({ ...d, aircraft: d.aircraft.map((a) => (a.id === aircraft.id ? updated : a)) });
+    log(aircraft.id, "Re-listed — new sales cycle started");
+  };
+
+  const counts = Object.fromEntries(tabs.map(([k]) => [k, data[k] ? data[k].length : 0]));
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap');
+        * { -webkit-tap-highlight-color: transparent; }
+        button:focus-visible, input:focus-visible { outline: 2px solid ${C.amber}; outline-offset: 1px; }
+        @keyframes tbSlideIn { from { transform: translateX(36px); opacity: 0.4; } to { transform: none; opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+      `}</style>
+
+      {/* identity bar + global search */}
+      <div style={{ background: C.bar, padding: "12px 16px", fontFamily: FONT, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginRight: "auto" }}>
+          <span style={{ color: "#fff", fontSize: 19, fontWeight: 700, letterSpacing: "0.02em" }}>TAILBOOK</span>
+          <span style={{ color: "#8FA0B1", fontFamily: MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" }}>Business aviation CRM</span>
+        </div>
+        <div style={{ position: "relative", width: 280, maxWidth: "60vw" }}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") setQuery(""); if (e.key === "Enter" && searchResults.length) goToResult(searchResults[0]); }}
+            placeholder="Search aircraft, deals, charter, contacts…"
+            aria-label="Global search"
+            style={{
+              width: "100%", boxSizing: "border-box", fontFamily: MONO, fontSize: 12,
+              letterSpacing: "0.04em", padding: "8px 12px", borderRadius: 7,
+              border: "1px solid #444444", background: "#2a2a2a", color: C.amber, outline: "none",
+            }}
+          />
+          {query.trim() && (
+            <div style={{
+              position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 80,
+              background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 8,
+              maxHeight: 340, overflowY: "auto", boxShadow: "0 12px 30px rgba(0,0,0,0.3)",
+            }}>
+              {searchResults.length === 0 && <div style={{ padding: "12px 14px", fontSize: 12, color: C.slate }}>No matches for “{query.trim()}”</div>}
+              {searchResults.map((res) => (
+                <button key={res.type + res.r.id} onClick={() => goToResult(res)} style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, width: "100%",
+                  padding: "10px 14px", border: "none", borderBottom: `1px solid #404040`,
+                  background: "transparent", cursor: "pointer", fontFamily: FONT, textAlign: "left",
+                }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{res.title}</span>
+                  <span style={{ fontSize: 10, fontFamily: MONO, color: C.slate, textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>{res.label}{res.r.stage ? " · " + res.r.stage : ""}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* tabs */}
+      <div style={{ display: "flex", gap: 6, padding: "10px 14px 0", overflowX: "auto", background: C.panel, borderBottom: `1px solid ${C.line}` }}>
+        {tabs.map(([k, label]) => {
+          const on = tab === k;
+          return (
+            <button key={k} onClick={() => setTab(k)} style={{
+              fontFamily: FONT, fontSize: 13, fontWeight: 700, padding: "9px 12px", cursor: "pointer",
+              background: "transparent", border: "none", color: on ? C.ink : C.slate,
+              borderBottom: `3px solid ${on ? C.amber : "transparent"}`, whiteSpace: "nowrap",
+            }}>
+              {label} <span style={{ fontFamily: MONO, fontSize: 11, color: C.slate }}>{counts[k]}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* view toolbar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 14px 0", flexWrap: "wrap" }}>
+        {tab !== "contacts" ? (
+          <div style={{ display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 7, overflow: "hidden", background: C.panel }}>
+            {(tab === "aircraft" ? ["board", "list", "registry"] : ["board", "list"]).map((v) => {
+              const on = data.prefs.view[tab] === v;
+              return (
+                <button key={v} onClick={() => setView(tab, v)} style={{
+                  fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 14px", border: "none", cursor: "pointer",
+                  background: on ? C.fill : "transparent", color: on ? "#fff" : C.slate, textTransform: "capitalize",
+                }}>{v}</button>
+              );
+            })}
+          </div>
+        ) : <div />}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {tab !== "contacts" && (
+            <Btn small onClick={() => setFiltering(true)} style={activeFilterCount ? { borderColor: C.amber, color: C.amber, fontWeight: 700 } : null}>
+              ⚲ Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}
+            </Btn>
+          )}
+          <ActionsMenu tab={tab} view={data.prefs.view[tab]}
+            onScanner={openScanImport} onStages={() => setEditingStages(true)}
+            onImport={() => fileRef.current && fileRef.current.click()} onExport={exportCSV}
+            onColumns={() => setManaging(true)} />
+        </div>
+      </div>
+      {activeFilterCount > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 14px 0", fontFamily: FONT }}>
+          {(curFilters.stages || []).map((s) => (
+            <button key={"st" + s} onClick={() => setTabFilters({ ...curFilters, stages: curFilters.stages.filter((x) => x !== s) })}
+              style={chipStyle()}>{s} ✕</button>
+          ))}
+          {Object.entries(curFilters.texts || {}).filter(([, v]) => v && v.trim()).map(([k, v]) => {
+            const f = getFields(tab, data).find((fd) => fd.k === k);
+            return (
+              <button key={"tx" + k} onClick={() => setTabFilters({ ...curFilters, texts: { ...curFilters.texts, [k]: "" } })}
+                style={chipStyle()}>{(f ? f.label : k)}: “{v}” ✕</button>
+            );
+          })}
+          <button onClick={() => setTabFilters({ stages: [], texts: {} })}
+            style={{ ...chipStyle(), background: "transparent", border: `1px solid ${C.line}`, color: C.slate }}>Clear all</button>
+        </div>
+      )}
+      <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: "none" }}
+        onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) importCSV(f); e.target.value = ""; }} />
+
+      {/* body */}
+      {tab === "contacts"
+        ? <Contacts contacts={data.contacts} onDelete={remove("contacts")} />
+        : tab === "aircraft" && data.prefs.view.aircraft === "registry"
+          ? <Registry data={data} onOpen={(type, id) => setOpen({ type, id })} onRelist={relist} />
+          : data.prefs.view[tab] === "list"
+            ? <ListView type={tab} records={applyFilters(tab === "aircraft" ? data.aircraft.filter((r) => !r.offMarket) : data[tab])} stages={getStages(tab, data)} data={data} onOpen={(type, id) => setOpen({ type, id })} onCellEdit={cellEdit(tab)} onStage={setStage(tab)} onColReorder={reorderCols} />
+            : <Board type={tab} records={applyFilters(tab === "aircraft" ? data.aircraft.filter((r) => !r.offMarket) : data[tab])} stages={getStages(tab, data)} onOpen={(type, id) => setOpen({ type, id })} onStage={setStage(tab)} />}
+
+      {/* add */}
+      <button onClick={() => setAdding(true)} aria-label="Add record" style={{
+        position: "fixed", right: 18, bottom: 22, width: 54, height: 54, borderRadius: 27,
+        background: C.amber, color: "#fff", border: "none", fontSize: 28, fontFamily: FONT,
+        boxShadow: "0 4px 14px rgba(0,0,0,0.3)", cursor: "pointer", zIndex: 40, lineHeight: 0,
+      }}>+</button>
+
+      {adding && <AddModal type={tab} fields={tab === "contacts" ? null : getFields(tab, data)} onClose={() => setAdding(false)} onCreate={create(tab)} />}
+      {managing && tab !== "contacts" && (
+        <ColumnManager type={tab} data={data} onClose={() => setManaging(false)}
+          onToggle={toggleCol} onMove={moveCol} onAddField={addField} onRemoveField={removeField} />
+      )}
+      {editingStages && tab !== "contacts" && (
+        <StageEditor type={tab} stages={getStages(tab, data)} onClose={() => setEditingStages(false)} onSave={saveStages} />
+      )}
+      {scanImport && (
+        <ScanImportModal state={scanImport} onClose={() => setScanImport(null)} onImport={importFromScanner} />
+      )}
+      {filtering && tab !== "contacts" && (
+        <FilterPanel type={tab} stages={getStages(tab, data)} fields={getFields(tab, data)}
+          value={curFilters} onChange={setTabFilters} onClose={() => setFiltering(false)} />
+      )}
+      {toast && (
+        <div role="status" style={{
+          position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)",
+          background: toast.ok ? C.bar : C.red, color: "#fff", fontFamily: FONT, fontSize: 13,
+          padding: "10px 18px", borderRadius: 8, zIndex: 120, maxWidth: "86vw",
+          boxShadow: "0 8px 22px rgba(0,0,0,0.35)",
+        }}>{toast.text}</div>
+      )}
+      {openRecord && (
+        <Detail
+          type={open.type}
+          record={openRecord}
+          fields={getFields(open.type, data)}
+          stages={getStages(open.type, data)}
+          data={data}
+          activity={data.activity}
+          onClose={() => setOpen(null)}
+          onUpdate={update(open.type)}
+          onDelete={remove(open.type)}
+          onLog={log}
+          onLinkToggle={linkToggle}
+          onSale={recordSale}
+        />
+      )}
+    </div>
+  );
+}
+
+
+window._authReady.then((session) => {
+  if (session) ReactDOM.createRoot(document.getElementById("root")).render(<Tailbook />);
+});
+
+</script>
+</body>
+</html>

@@ -113,7 +113,7 @@ sb.auth.onAuthStateChange((event) => {
 (async () => {
   if (linkType || linkError) return; // don't auto-redirect mid-invite/reset
   const { data: { session } } = await sb.auth.getSession();
-  if (session) window.location.href = '/hub/';
+  if (session) window.location.href = 'hub.html';
 })();
 
 // Enter key submits
@@ -154,7 +154,7 @@ async function setPassword() {
     btn.disabled = false;
     btn.textContent = 'Set Password';
   } else {
-    window.location.href = '/hub/';
+    window.location.href = 'hub.html';
   }
 }
 
@@ -179,7 +179,7 @@ async function signIn() {
     btn.disabled = false;
     btn.textContent = 'Sign In';
   } else {
-    window.location.href = '/hub/';
+    window.location.href = 'hub.html';
   }
 }
 
